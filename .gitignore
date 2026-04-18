@@ -1,5 +1,25 @@
 .env
+.env.local
 __pycache__/
 *.pyc
 /tmp/
 .DS_Store
+
+# Python
+.venv/
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Data (large files)
+data/*.parquet
+data/*.duckdb
+data/raw/
+
+# IDE
+.vscode/
+.idea/

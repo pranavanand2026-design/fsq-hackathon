@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: #0B0E14;
+  color: #E6EAF2;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv02", "cv03", "cv04", "tnum";
+}
+
+/* MapLibre canvas should fill its container */
+.maplibregl-canvas { outline: none !important; }
+.maplibregl-map { background: #0B0E14 !important; }
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #262E3D; border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: #3A4458; }
+
+.tabular { font-variant-numeric: tabular-nums; }

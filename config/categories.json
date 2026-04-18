@@ -1,0 +1,102 @@
+{
+  "_doc": "Category mapping using real FSQ primary_category values (extracted from fsq_category_labels, trimmed).",
+  "verticals": {
+    "bubble_tea": {
+      "label": "Bubble Tea Shop",
+      "competitors": [
+        "Bubble Tea Shop",
+        "Cafe, Coffee, and Tea House"
+      ],
+      "complementary": [
+        "Coffee Shop",
+        "Bakery",
+        "Fast Food Restaurant",
+        "Ice Cream Parlor",
+        "Dessert Shop",
+        "Asian Restaurant",
+        "Restaurant"
+      ],
+      "anchors": [
+        "College and University",
+        "University",
+        "Shopping Mall",
+        "Shopping Plaza",
+        "High School",
+        "Rail Station",
+        "Bus Station",
+        "Hospital"
+      ]
+    },
+    "coffee": {
+      "label": "Specialty Coffee",
+      "competitors": [
+        "Coffee Shop",
+        "Cafe, Coffee, and Tea House",
+        "Café"
+      ],
+      "complementary": [
+        "Bakery",
+        "Sandwich Spot",
+        "Breakfast Spot",
+        "Juice Bar",
+        "Bookstore"
+      ],
+      "anchors": [
+        "Office",
+        "College and University",
+        "University",
+        "Rail Station",
+        "Bus Station",
+        "Shopping Mall",
+        "Hospital"
+      ]
+    },
+    "fast_casual": {
+      "label": "Fast-Casual Restaurant",
+      "competitors": [
+        "Fast Food Restaurant",
+        "Restaurant",
+        "Sandwich Spot"
+      ],
+      "complementary": [
+        "Coffee Shop",
+        "Café",
+        "Juice Bar",
+        "Bubble Tea Shop",
+        "Dessert Shop"
+      ],
+      "anchors": [
+        "Shopping Mall",
+        "Office",
+        "College and University",
+        "University",
+        "Hospital",
+        "Rail Station",
+        "Bus Station"
+      ]
+    }
+  },
+  "transit_categories": [
+    "Rail Station",
+    "Bus Station",
+    "Bus Stop",
+    "Light Rail Station",
+    "Ferry Terminal"
+  ],
+  "retail_fnb_categories": [
+    "Restaurant",
+    "Coffee Shop",
+    "Café",
+    "Cafe, Coffee, and Tea House",
+    "Bar",
+    "Fast Food Restaurant",
+    "Bakery",
+    "Clothing Store",
+    "Convenience Store",
+    "Supermarket",
+    "Shopping Mall",
+    "Pharmacy",
+    "Bubble Tea Shop",
+    "Retail"
+  ]
+}
