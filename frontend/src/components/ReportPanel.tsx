@@ -1,9 +1,9 @@
-import { X, Pin, MapPin, Building2, Train, Store } from "lucide-react";
+import { X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ScoreBar } from "./ScoreBar";
 import { scoreHex, scoreLabel } from "../lib/colors";
 import { useStore } from "../lib/store";
-import type { HexReport, HexResult } from "../lib/api";
+import type { HexResult } from "../lib/api";
 
 function dist(m: number) {
   return m < 1000 ? `${m}m` : `${(m / 1000).toFixed(1)}km`;
@@ -27,147 +27,157 @@ export function ReportPanel() {
     n_complementary: r.signals_raw.n_complementary,
   };
 
+  const competitionLabel = r.signals_raw.n_competitors === 0 ? "Low (0)" : r.signals_raw.n_competitors <= 3 ? `Medium (${r.signals_raw.n_competitors})` : `High (${r.signals_raw.n_competitors})`;
+  const competitionColor = r.signals_raw.n_competitors === 0 ? "#10B981" : r.signals_raw.n_competitors <= 3 ? "#F59E0B" : "#EF4444";
+
   return (
     <AnimatePresence>
       <motion.div
         key="report"
-        initial={{ x: 360, opacity: 0 }}
+        initial={{ x: 380, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
-        exit={{ x: 360, opacity: 0 }}
-        transition={{ type: "spring", stiffness: 340, damping: 30 }}
-        className="absolute right-0 top-0 h-full w-80 bg-bg-panel border-l border-bg-border flex flex-col z-20 shadow-panel overflow-hidden"
+        exit={{ x: 380, opacity: 0 }}
+        transition={{ type: "spring", stiffness: 300, damping: 28 }}
+        className="absolute right-0 top-0 h-full w-[340px] bg-white border-l border-gray-200 flex flex-col z-20 overflow-hidden"
+        style={{ boxShadow: '-2px 0 12px rgba(0,0,0,0.06)' }}
       >
-        {/* header */}
-        <div className="flex items-start justify-between p-4 border-b border-bg-border">
-          <div>
-            <p className="text-xs text-fg-tertiary uppercase tracking-widest mb-1">
-              Opportunity Report
-            </p>
-            <h2 className="text-lg font-semibold text-fg-primary leading-tight">
-              {r.locality ?? "Sydney Area"}
-            </h2>
-          </div>
-          <button
-            onClick={() => setSelectedHex(null)}
-            className="text-fg-tertiary hover:text-fg-primary transition-colors mt-0.5"
-          >
-            <X size={18} />
-          </button>
-        </div>
+        {/* scrollable content */}
+        <div className="flex-1 overflow-y-auto">
 
-        {/* score hero */}
-        <div className="px-4 py-5 border-b border-bg-border">
-          <div className="flex items-center gap-3">
-            <div
-              className="text-5xl font-bold tabular leading-none"
-              style={{ color: scoreHex(r.score) }}
-            >
-              {r.score}
-            </div>
+          {/* header */}
+          <div className="flex items-start justify-between px-6 pt-6 pb-4">
             <div>
-              <div className="text-xs text-fg-tertiary">/ 100</div>
-              <div
-                className="text-sm font-medium mt-0.5"
+              <h2 className="text-xl font-bold text-gray-900 leading-tight">
+                {r.locality ?? "Sydney Area"}
+              </h2>
+              <p className="text-sm text-gray-400 mt-0.5">
+                Inner West, NSW 2048
+              </p>
+            </div>
+            <button
+              onClick={() => setSelectedHex(null)}
+              className="text-gray-400 hover:text-gray-700 transition-colors p-1"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* score hero */}
+          <div className="mx-6 mb-5 bg-gray-50 border border-gray-100 rounded-2xl px-6 py-5 text-center">
+            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] mb-2">
+              Opportunity Score
+            </div>
+            <div className="flex items-end justify-center gap-1">
+              <span
+                className="text-[56px] font-extrabold tabular tracking-tighter leading-none"
                 style={{ color: scoreHex(r.score) }}
               >
-                {scoreLabel(r.score)}
+                {r.score}
+              </span>
+              <span className="text-xl text-gray-300 font-bold mb-2">/100</span>
+            </div>
+          </div>
+
+          {/* key metrics */}
+          <div className="px-6 space-y-0">
+            <MetricRow label="Competition" value={competitionLabel} valueColor={competitionColor} />
+            <MetricRow label="Complementary" value={`${r.signals_raw.n_complementary} nearby`} valueColor="#10B981" />
+            <MetricRow label="Diversity" value={r.diversity_index?.toFixed(2) ?? "—"} valueColor="#10B981" />
+            <MetricRow
+              label="Transit access"
+              value={r.nearest_transit[0]?.name ?? "None found"}
+              valueColor="#3B82F6"
+              isLink
+            />
+          </div>
+
+          {/* score breakdown */}
+          <div className="px-6 pt-5 pb-4">
+            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] mb-3">
+              Score Breakdown
+            </div>
+            <div className="space-y-2.5">
+              {Object.entries(r.components).map(([k, v]) => (
+                <ScoreBar key={k} name={k} value={v} />
+              ))}
+            </div>
+          </div>
+
+          {/* nearby competitors */}
+          <div className="px-6 py-4 border-t border-gray-100">
+            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] mb-3">
+              🔴 Nearby Competitors
+            </div>
+            {r.nearest_competitors.length === 0 ? (
+              <div className="text-sm text-gray-500 font-medium py-1">✅ No direct competitors found</div>
+            ) : (
+              <div className="space-y-2">
+                {r.nearest_competitors.slice(0, 4).map((c, i) => (
+                  <div key={i} className="flex justify-between items-center">
+                    <span className="text-sm text-gray-700 font-medium truncate">{c.name}</span>
+                    <span className="text-xs text-gray-400 tabular ml-2 flex-shrink-0">{dist(c.dist_m)}</span>
+                  </div>
+                ))}
               </div>
+            )}
+          </div>
+
+          {/* complementary */}
+          <div className="px-6 py-4 border-t border-gray-100">
+            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] mb-3">
+              🟢 Complementary
+            </div>
+            <div className="space-y-2">
+              {r.nearest_complementary.slice(0, 4).map((c, i) => (
+                <div key={i} className="flex justify-between items-center">
+                  <span className="text-sm text-gray-700 font-medium truncate">{c.name}</span>
+                  <span className="text-xs text-gray-400 tabular ml-2 flex-shrink-0">{dist(c.dist_m)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* AI Insight */}
+          <div className="px-6 py-4 border-t border-gray-100">
+            <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 relative">
+              <div className="absolute top-0 left-0 w-1 h-full bg-amber-400 rounded-l-xl"></div>
+              <div className="text-[10px] font-bold text-amber-700 uppercase tracking-[0.15em] mb-2 flex items-center gap-1.5">
+                ✨ AI Insight
+              </div>
+              <p className="text-sm text-gray-700 leading-relaxed">
+                {r.ai_insight ?? `${r.locality ?? "This area"} shows potential for a new location based on the surrounding business mix and competitive landscape.`}
+              </p>
             </div>
           </div>
         </div>
 
-        {/* score bars */}
-        <div className="px-4 py-4 border-b border-bg-border space-y-3">
-          {Object.entries(r.components).map(([k, v]) => (
-            <ScoreBar key={k} name={k} value={v} />
-          ))}
-        </div>
-
-        {/* nearby */}
-        <div className="flex-1 overflow-y-auto">
-          {r.nearest_anchors.length > 0 && (
-            <Section icon={<Building2 size={13} />} title="Anchors nearby">
-              {r.nearest_anchors.map((p, i) => (
-                <PoiRow key={i} name={p.name} category={p.primary_category} dist={p.dist_m} color="#10B981" />
-              ))}
-            </Section>
-          )}
-
-          {r.nearest_competitors.length > 0 && (
-            <Section icon={<Store size={13} />} title="Direct competitors">
-              {r.nearest_competitors.map((p, i) => (
-                <PoiRow key={i} name={p.name} category={p.primary_category} dist={p.dist_m} color="#EF4444" />
-              ))}
-            </Section>
-          )}
-
-          {r.nearest_complementary.length > 0 && (
-            <Section icon={<MapPin size={13} />} title="Complementary">
-              {r.nearest_complementary.slice(0, 4).map((p, i) => (
-                <PoiRow key={i} name={p.name} category={p.primary_category} dist={p.dist_m} color="#6366F1" />
-              ))}
-            </Section>
-          )}
-
-          {r.nearest_transit.length > 0 && (
-            <Section icon={<Train size={13} />} title="Transit">
-              {r.nearest_transit.map((p, i) => (
-                <PoiRow key={i} name={p.name} category={p.primary_category} dist={p.dist_m} color="#F59E0B" />
-              ))}
-            </Section>
-          )}
-        </div>
-
-        {/* actions */}
-        <div className="p-4 border-t border-bg-border flex gap-2">
+        {/* sticky footer */}
+        <div className="px-6 py-5 border-t border-gray-100 bg-white">
           <button
             onClick={() => {
-              togglePin(hexResult);
-              if (!isPinned && pinned.length >= 1) setCompareOpen(true);
+              if (!isPinned) togglePin(hexResult);
+              setCompareOpen(true);
             }}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${
-              isPinned
-                ? "bg-accent text-white"
-                : "bg-bg-elevated hover:bg-bg-border text-fg-secondary hover:text-fg-primary"
-            }`}
+            className="w-full py-3.5 rounded-xl text-sm font-bold bg-emerald-500 text-white hover:bg-emerald-600 active:bg-emerald-700 transition-colors shadow-sm"
           >
-            <Pin size={14} />
-            {isPinned ? "Pinned" : "Pin location"}
+            Compare with another area
           </button>
-          {pinned.length >= 1 && (
-            <button
-              onClick={() => setCompareOpen(true)}
-              className="flex-1 py-2 rounded-lg text-sm font-medium bg-bg-elevated hover:bg-bg-border text-fg-secondary hover:text-fg-primary transition-colors"
-            >
-              Compare ({pinned.length + (isPinned ? 0 : 1)})
-            </button>
-          )}
         </div>
       </motion.div>
     </AnimatePresence>
   );
 }
 
-function Section({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+function MetricRow({ label, value, valueColor, isLink }: { label: string; value: string; valueColor: string; isLink?: boolean }) {
   return (
-    <div className="px-4 py-3 border-b border-bg-border">
-      <div className="flex items-center gap-1.5 text-xs text-fg-tertiary uppercase tracking-widest mb-2">
-        {icon}
-        {title}
-      </div>
-      <div className="space-y-1.5">{children}</div>
-    </div>
-  );
-}
-
-function PoiRow({ name, category, dist: d, color }: { name: string; category: string | null; dist: number; color: string }) {
-  return (
-    <div className="flex justify-between items-center">
-      <div className="flex items-center gap-2 min-w-0">
-        <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-        <span className="text-sm text-fg-primary truncate">{name}</span>
-      </div>
-      <span className="text-xs text-fg-tertiary tabular ml-2 flex-shrink-0">{dist(d)}</span>
+    <div className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-b-0">
+      <span className="text-sm text-gray-600 font-medium">{label}</span>
+      <span
+        className={`text-sm font-bold tabular ${isLink ? "cursor-pointer hover:underline" : ""}`}
+        style={{ color: valueColor }}
+      >
+        {value}
+      </span>
     </div>
   );
 }

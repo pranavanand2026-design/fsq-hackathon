@@ -1,14 +1,14 @@
 import { useEffect } from "react";
-import { Layers, Map, TrendingUp, X } from "lucide-react";
+import { Map, X } from "lucide-react";
 import { useStore } from "../lib/store";
 import { api } from "../lib/api";
 import { scoreHex } from "../lib/colors";
 import type { HexResult } from "../lib/api";
 
 const LAYER_DEFS = [
-  { key: "opportunity" as const, label: "Opportunity", color: "#10B981" },
-  { key: "competitors" as const, label: "Competitors", color: "#EF4444" },
-  { key: "complementary" as const, label: "Complementary", color: "#6366F1" },
+  { key: "opportunity" as const, label: "Opportunity heatmap", color: "#10B981", emoji: "🟧" },
+  { key: "competitors" as const, label: "Competitors", color: "#EF4444", emoji: "🔴" },
+  { key: "complementary" as const, label: "Complementary", color: "#6366F1", emoji: "🟢" },
 ];
 
 export function Sidebar({ onPinnedClick }: { onPinnedClick: (h: HexResult) => void }) {
@@ -25,30 +25,32 @@ export function Sidebar({ onPinnedClick }: { onPinnedClick: (h: HexResult) => vo
   }, []);
 
   return (
-    <div className="absolute left-0 top-0 h-full w-60 bg-bg-panel border-r border-bg-border flex flex-col z-10 shadow-panel">
+    <div className="absolute left-0 top-0 h-full w-64 bg-white border-r border-gray-200 flex flex-col z-10" style={{ boxShadow: '1px 0 8px rgba(0,0,0,0.04)' }}>
       {/* logo */}
-      <div className="px-4 py-4 border-b border-bg-border">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center">
-            <Map size={15} className="text-white" />
+      <div className="px-5 py-5 border-b border-gray-100">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-emerald-500 flex items-center justify-center shadow-sm">
+            <Map size={16} className="text-white" />
           </div>
           <div>
-            <span className="font-bold text-fg-primary tracking-tight">GapMap</span>
-            <div className="text-[10px] text-fg-tertiary leading-none mt-0.5">Site selection AI</div>
+            <span className="font-bold text-gray-900 text-base tracking-tight">GapMap</span>
+            <span className="ml-1.5 text-[10px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">beta</span>
+            <div className="text-[11px] text-gray-400 leading-none mt-0.5">Site selection AI</div>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-5">
+      <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
         {/* vertical */}
         <div>
-          <label className="block text-xs text-fg-tertiary uppercase tracking-widest mb-2">
-            Franchise vertical
+          <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">
+            I want to open a...
           </label>
           <select
             value={vertical}
             onChange={(e) => setVertical(e.target.value)}
-            className="w-full bg-bg-elevated border border-bg-border text-fg-primary text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-accent"
+            className="w-full bg-white border border-gray-200 text-gray-900 text-sm font-medium rounded-xl px-3 py-2.5 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all appearance-none cursor-pointer"
+            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' stroke='%239CA3AF' fill='none' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center' }}
           >
             {verticals.map((v) => (
               <option key={v.key} value={v.key}>{v.label}</option>
@@ -56,88 +58,111 @@ export function Sidebar({ onPinnedClick }: { onPinnedClick: (h: HexResult) => vo
           </select>
         </div>
 
+        {/* area */}
+        <div>
+          <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">
+            Area
+          </label>
+          <select
+            className="w-full bg-white border border-gray-200 text-gray-900 text-sm font-medium rounded-xl px-3 py-2.5 appearance-none cursor-pointer"
+            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' stroke='%239CA3AF' fill='none' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center' }}
+          >
+            <option>Inner West, Sydney</option>
+            <option>Greater Sydney</option>
+          </select>
+        </div>
+
+        {/* radius */}
+        <div>
+          <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">
+            Radius
+          </label>
+          <div className="flex items-center gap-3">
+            <input
+              type="range" min="100" max="2000" step="100" defaultValue="500"
+              className="flex-1 h-1 bg-gray-200 rounded-full appearance-none cursor-pointer accent-emerald-500"
+            />
+            <span className="text-sm font-semibold text-gray-900 tabular w-12 text-right">500m</span>
+          </div>
+        </div>
+
         {/* brand slug */}
         <div>
-          <label className="block text-xs text-fg-tertiary uppercase tracking-widest mb-2">
-            Your brand (for cannibalisation)
+          <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">
+            Your brand
           </label>
           <input
             type="text"
             value={brandSlug}
             onChange={(e) => setBrandSlug(e.target.value.toLowerCase().replace(/[^a-z]/g, ""))}
             placeholder="e.g. gongcha"
-            className="w-full bg-bg-elevated border border-bg-border text-fg-primary text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-accent placeholder:text-fg-tertiary"
+            className="w-full bg-white border border-gray-200 text-gray-900 text-sm font-medium rounded-xl px-3 py-2.5 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all placeholder:text-gray-300"
           />
-          <p className="text-[10px] text-fg-tertiary mt-1">Lowercase, no spaces. Prefix-matched.</p>
+          <p className="text-[10px] text-gray-400 mt-1.5">For cannibalisation analysis</p>
         </div>
 
-        {/* layers */}
+        {/* map layers */}
         <div>
-          <div className="flex items-center gap-1.5 text-xs text-fg-tertiary uppercase tracking-widest mb-2">
-            <Layers size={12} />
-            Layers
+          <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-3">
+            🗺️ Map Layers
           </div>
-          <div className="space-y-2">
-            {LAYER_DEFS.map(({ key, label, color }) => (
-              <label key={key} className="flex items-center gap-2.5 cursor-pointer group">
+          <div className="space-y-2.5">
+            {LAYER_DEFS.map(({ key, label, color, emoji }) => (
+              <label key={key} className="flex items-center gap-3 cursor-pointer group py-0.5">
                 <div
-                  className={`w-4 h-4 rounded border transition-colors flex items-center justify-center ${
-                    layers[key] ? "border-transparent" : "border-bg-border bg-bg-elevated"
+                  className={`w-[18px] h-[18px] rounded-md border-2 transition-all flex items-center justify-center ${
+                    layers[key] ? "border-transparent shadow-sm" : "border-gray-300 bg-white"
                   }`}
                   style={layers[key] ? { backgroundColor: color } : {}}
                   onClick={() => toggleLayer(key)}
                 >
                   {layers[key] && (
                     <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                      <path d="M1 4l3 3 5-6" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M1 4l3 3 5-6" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   )}
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-                  <span className="text-sm text-fg-secondary group-hover:text-fg-primary transition-colors">
-                    {label}
-                  </span>
-                </div>
+                <span className="text-sm text-gray-700 group-hover:text-gray-900 transition-colors font-medium">
+                  {label}
+                </span>
               </label>
             ))}
           </div>
         </div>
 
-        {/* pinned locations */}
+        {/* compare section */}
         {pinned.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-1.5 text-xs text-fg-tertiary uppercase tracking-widest">
-                <TrendingUp size={12} />
-                Pinned ({pinned.length}/3)
+          <div className="pt-4 border-t border-gray-100">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                Compare
               </div>
-              <button onClick={clearPinned} className="text-[10px] text-fg-tertiary hover:text-fg-primary">
+              <button onClick={clearPinned} className="text-[11px] text-gray-400 hover:text-gray-700 font-medium transition-colors">
                 Clear all
               </button>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               {pinned.map((p) => (
                 <div
                   key={p.h3_id}
                   onClick={() => onPinnedClick(p)}
-                  className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-md hover:bg-bg-elevated transition-colors cursor-pointer group"
+                  className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer group"
                 >
-                  <span className="text-sm text-fg-secondary group-hover:text-fg-primary truncate">
+                  <span className="text-sm text-gray-700 group-hover:text-gray-900 font-medium truncate">
                     {p.locality ?? "Area"}
                   </span>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <span
-                      className="text-sm font-medium tabular"
+                      className="text-sm font-bold tabular"
                       style={{ color: scoreHex(p.score) }}
                     >
                       {p.score}
                     </span>
                     <button
                       onClick={(e) => { e.stopPropagation(); togglePin(p); }}
-                      className="text-fg-tertiary hover:text-fg-primary opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="text-gray-300 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-all"
                     >
-                      <X size={12} />
+                      <X size={14} />
                     </button>
                   </div>
                 </div>
@@ -146,13 +171,13 @@ export function Sidebar({ onPinnedClick }: { onPinnedClick: (h: HexResult) => vo
             {pinned.length >= 2 && (
               <button
                 onClick={() => setCompareOpen(true)}
-                className="mt-3 w-full py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-emerald-500 transition-colors"
+                className="mt-3 w-full py-2.5 rounded-xl text-sm font-bold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shadow-sm"
               >
                 Compare {pinned.length} locations
               </button>
             )}
             {pinned.length === 1 && (
-              <p className="mt-3 text-[10px] text-fg-tertiary text-center">
+              <p className="mt-2 text-xs text-gray-400 text-center">
                 Pin one more location to compare
               </p>
             )}
@@ -161,9 +186,9 @@ export function Sidebar({ onPinnedClick }: { onPinnedClick: (h: HexResult) => vo
       </div>
 
       {/* data badge */}
-      <div className="p-4 border-t border-bg-border">
-        <div className="text-[10px] text-fg-tertiary leading-relaxed">
-          Powered by Foursquare OS Places<br />
+      <div className="px-5 py-3.5 border-t border-gray-100 bg-gray-50/50">
+        <div className="text-[10px] text-gray-400 leading-relaxed">
+          Powered by <span className="font-semibold text-gray-500">Foursquare OS Places</span><br />
           <PoiCount /> · H3 res-9
         </div>
       </div>
@@ -171,9 +196,7 @@ export function Sidebar({ onPinnedClick }: { onPinnedClick: (h: HexResult) => vo
   );
 }
 
-// Tiny live count that pulls from /api/health once
 function PoiCount() {
   const { hexes } = useStore();
-  // hexes is populated from /api/heatmap so reflects live data
   return <span>{hexes.length ? `${hexes.length.toLocaleString()} Sydney hexes` : "loading..."}</span>;
 }

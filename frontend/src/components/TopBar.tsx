@@ -15,23 +15,26 @@ export function TopBar() {
   );
 
   return (
-    <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 bg-bg-panel/90 backdrop-blur border border-bg-border rounded-full pl-3 pr-1.5 py-1.5 shadow-panel text-xs">
-      <Zap size={12} className="text-accent" />
-      <span className="text-fg-primary font-medium">{label}</span>
+    <div
+      className="absolute top-5 left-5 z-10 flex items-center gap-2 bg-white border border-gray-200 rounded-full pl-3.5 pr-2 py-2 text-xs"
+      style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
+    >
+      <Zap size={12} className="text-emerald-500" />
+      <span className="text-gray-900 font-semibold">{label}</span>
       {brandSlug && (
         <>
-          <span className="text-fg-tertiary">·</span>
-          <Store size={11} className="text-fg-tertiary" />
-          <span className="text-fg-secondary">{brandSlug}</span>
+          <span className="text-gray-300">·</span>
+          <Store size={11} className="text-gray-400" />
+          <span className="text-gray-600 font-medium">{brandSlug}</span>
         </>
       )}
       {hexes.length > 0 && (
-        <span className="ml-1 px-2 py-0.5 rounded-full bg-bg-elevated text-fg-tertiary tabular">
+        <span className="ml-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold tabular text-[11px]">
           {hexes.length.toLocaleString()} hexes
           {topScore !== null && (
             <>
-              <span className="mx-1 text-fg-tertiary">·</span>
-              <span className="text-accent font-medium">top {topScore}</span>
+              <span className="mx-1 text-emerald-300">·</span>
+              <span className="text-emerald-600">top {topScore}</span>
             </>
           )}
         </span>

@@ -38,14 +38,14 @@ export default function App() {
       <Sidebar onPinnedClick={handleHighlight} />
 
       {/* map — fills space left of sidebar, right of report panel */}
-      <div className="absolute left-60 right-0 top-0 bottom-0">
+      <div className="absolute left-64 right-0 top-0 bottom-0">
         <MapView />
         <TopBar />
         <ChatBar onHighlight={handleHighlight} />
       </div>
 
       {/* right report panel — overlays the map */}
-      <div className="absolute left-60 right-0 top-0 bottom-0 pointer-events-none">
+      <div className="absolute left-64 right-0 top-0 bottom-0 pointer-events-none">
         <div className="relative w-full h-full pointer-events-auto">
           <ReportPanel />
         </div>

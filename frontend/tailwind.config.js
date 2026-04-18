@@ -5,19 +5,19 @@ export default {
     extend: {
       colors: {
         bg: {
-          base:    "#0B0E14",
-          panel:   "#141922",
-          elevated:"#1B2230",
-          border:  "#262E3D",
+          base:    "#F3F4F6",
+          panel:   "#FFFFFF",
+          elevated:"#F9FAFB",
+          border:  "#E5E7EB",
         },
         fg: {
-          primary:   "#E6EAF2",
-          secondary: "#9BA3B4",
-          tertiary:  "#636B7A",
+          primary:   "#111827",
+          secondary: "#4B5563",
+          tertiary:  "#9CA3AF",
         },
         accent: {
           DEFAULT: "#10B981",
-          dim:     "#064E3B",
+          dim:     "rgba(16, 185, 129, 0.15)",
         },
         score: {
           high:   "#10B981",
@@ -41,7 +41,7 @@ export default {
         tabular: '"tnum"',
       },
       boxShadow: {
-        panel: "0 6px 40px rgba(0,0,0,0.4)",
+        panel: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
       },
     },
   },

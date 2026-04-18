@@ -65,6 +65,8 @@ export type HexReport = {
   nearest_complementary: NearPoi[];
   nearest_anchors: NearPoi[];
   nearest_transit: NearPoi[];
+  diversity_index: number;
+  ai_insight: string;
 };
 
 export type ChatResponse = {

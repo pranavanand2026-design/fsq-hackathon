@@ -3,28 +3,39 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
-  background: #0B0E14;
-  color: #E6EAF2;
+  background: #FFFFFF;
+  color: #111827;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   font-feature-settings: "cv02", "cv03", "cv04", "tnum";
 }
 
+/* Force light mode on all form elements */
+select, input, textarea, button {
+  color-scheme: light !important;
+}
+
 /* MapLibre canvas should fill its container */
 .maplibregl-canvas { outline: none !important; }
-.maplibregl-map { background: #0B0E14 !important; }
+.maplibregl-map { background: #F3F4F6 !important; }
 
-/* Scrollbars */
-::-webkit-scrollbar { width: 8px; height: 8px; }
+/* Scrollbars — light theme */
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #262E3D; border-radius: 8px; }
-::-webkit-scrollbar-thumb:hover { background: #3A4458; }
+::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
 
 .tabular { font-variant-numeric: tabular-nums; }
+
+/* Ensures deck.gl tooltip resets in light mode */
+.deck-tooltip {
+  color: #111827 !important;
+  background: #FFFFFF !important;
+}

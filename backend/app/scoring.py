@@ -10,7 +10,9 @@ Signals (weights sum to 100):
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Iterable
 
 import h3
@@ -155,19 +157,34 @@ def _score_cannibal(dist_m: float | None) -> float:
     )
 
 
+# ─── Caching layer ──────────────────────────────────────────────────────────
+
+# Cache keyed on (vertical, brand_slug, locality) — avoids re-scoring 12K hexes
+# for every hex_report() and compare() call. Cleared on restart.
+_score_cache: dict[tuple, list[HexScore]] = {}
+
+
+def _cache_key(vertical: str, brand_slug: str | None, locality: str | None) -> tuple:
+    return (vertical, brand_slug or "", locality or "")
+
+
+def _get_cached_scores(vertical: str, brand_slug: str | None = None, locality: str | None = None) -> list[HexScore]:
+    """Return cached scores or compute and cache them."""
+    key = _cache_key(vertical, brand_slug, locality)
+    if key not in _score_cache:
+        _score_cache[key] = _score_hexes_impl(vertical, brand_slug, locality)
+    return _score_cache[key]
+
+
 # ─── Main scoring query ──────────────────────────────────────────────────────
 
 
-def score_hexes(
+def _score_hexes_impl(
     vertical_key: str,
     brand_slug: str | None = None,
     locality_filter: str | None = None,
 ) -> list[HexScore]:
-    """Score every hex that has POIs; optionally filter by locality.
-
-    brand_slug: normalized slug of the user's own brand (for cannibalization).
-                If None, cannibalization signal is neutral (100).
-    """
+    """Internal implementation of score_hexes (called by cache)."""
     con = get_con()
     tagged = _category_tag_cte(vertical_key)
 
@@ -176,12 +193,6 @@ def score_hexes(
         safe = locality_filter.replace("'", "''")
         locality_where = f"AND LOWER(h.locality) LIKE LOWER('%{safe}%')"
 
-    # 1. Build hex centers + locality from the data
-    # 2. For each hex center, aggregate:
-    #    - competitors within radius
-    #    - complementary within radius
-    #    - retail_fnb within radius (foot-traffic proxy)
-    #    - min distance to anchor, transit, same-brand
     sql = f"""
     WITH {tagged},
     hex_centers AS (
@@ -221,7 +232,7 @@ def score_hexes(
         COUNT(*) FILTER (WHERE is_retail_fnb   AND dist_m <= {PARAMS["foot_traffic_radius_m"]}) AS n_retail,
         MIN(dist_m) FILTER (WHERE is_anchor)  AS d_anchor_m,
         MIN(dist_m) FILTER (WHERE is_transit) AS d_transit_m,
-        {("MIN(dist_m) FILTER (WHERE brand_slug LIKE '" + brand_slug.replace(chr(39), chr(39)*2) + "%' AND dist_m > 0)") if brand_slug else 'NULL'}
+        {"MIN(dist_m) FILTER (WHERE brand_slug LIKE '" + brand_slug.replace(chr(39), chr(39)*2) + "%' AND dist_m > 0)" if brand_slug else 'NULL'}
           AS d_cannibal_m
       FROM with_dist h
       WHERE 1=1
@@ -269,6 +280,126 @@ def score_hexes(
     return out
 
 
+def score_hexes(
+    vertical_key: str,
+    brand_slug: str | None = None,
+    locality_filter: str | None = None,
+) -> list[HexScore]:
+    """Score every hex that has POIs; optionally filter by locality.
+
+    Uses caching so hex_report() and compare() don't re-score 12K hexes each time.
+
+    brand_slug: normalized slug of the user's own brand (for cannibalization).
+                If None, cannibalization signal is neutral (100).
+    """
+    return _get_cached_scores(vertical_key, brand_slug, locality_filter)
+
+
+# ─── Diversity Index ─────────────────────────────────────────────────────────
+
+
+def _compute_diversity(con, lat: float, lng: float, radius_m: int = 300) -> float:
+    """Compute Shannon diversity index (H') of POI categories within radius.
+    
+    Returns a normalized 0–1 score where 1 = perfectly diverse.
+    """
+    dist_sql = _haversine_sql(str(lat), str(lng), "latitude", "longitude")
+    sql = f"""
+    SELECT primary_category, COUNT(*) AS cnt
+    FROM pois
+    WHERE primary_category IS NOT NULL
+      AND latitude BETWEEN {lat} - 0.005 AND {lat} + 0.005
+      AND longitude BETWEEN {lng} - 0.006 AND {lng} + 0.006
+      AND {dist_sql} <= {radius_m}
+    GROUP BY primary_category
+    """
+    rows = con.execute(sql).fetchall()
+    if not rows:
+        return 0.0
+    
+    total = sum(r[1] for r in rows)
+    if total <= 1:
+        return 0.0
+    
+    # Shannon H' = -Σ (pi * ln(pi))
+    h_prime = 0.0
+    for _, cnt in rows:
+        p = cnt / total
+        if p > 0:
+            h_prime -= p * math.log(p)
+    
+    # Normalize to 0–1 using max possible H' = ln(S)
+    s = len(rows)  # number of unique categories
+    h_max = math.log(s) if s > 1 else 1.0
+    return round(min(h_prime / h_max, 1.0), 2)
+
+
+# ─── AI Insight generator ───────────────────────────────────────────────────
+
+
+def _generate_ai_insight(
+    locality: str | None,
+    score: int,
+    signals_raw: dict,
+    nearest_competitors: list[dict],
+    nearest_anchors: list[dict],
+    nearest_complementary: list[dict],
+    nearest_transit: list[dict],
+    diversity: float,
+) -> str:
+    """Generate a rich, data-backed AI insight paragraph from scoring signals."""
+    area = locality or "This area"
+    parts = []
+    
+    # Score assessment
+    if score >= 85:
+        parts.append(f"{area} is an **excellent** white-space opportunity with a score of {score}/100.")
+    elif score >= 70:
+        parts.append(f"{area} scores a strong {score}/100, making it a **high-potential** site.")
+    elif score >= 50:
+        parts.append(f"{area} scores {score}/100 — a **moderate** opportunity with room for growth.")
+    else:
+        parts.append(f"{area} scores only {score}/100 — this location has **significant risk factors**.")
+    
+    # Competition insight
+    n_comp = signals_raw.get("n_competitors", 0)
+    if n_comp == 0:
+        parts.append("Zero direct competitors within 500m — a true gap in the market.")
+    elif n_comp <= 2:
+        parts.append(f"Only {n_comp} competitor{'s' if n_comp > 1 else ''} within 500m, suggesting low saturation.")
+    else:
+        closest = nearest_competitors[0] if nearest_competitors else None
+        if closest:
+            parts.append(f"{n_comp} competitors nearby (closest: {closest['name']} at {closest['dist_m']}m).")
+    
+    # Foot traffic / anchor driver
+    if nearest_anchors:
+        anchor = nearest_anchors[0]
+        parts.append(f"Strong anchor pull from {anchor['name']} just {anchor['dist_m']}m away, driving consistent foot traffic.")
+    
+    # Complementary businesses
+    n_comp_nearby = len(nearest_complementary)
+    if n_comp_nearby >= 3:
+        names = [c["name"] for c in nearest_complementary[:3]]
+        parts.append(f"Surrounded by {n_comp_nearby} complementary businesses including {', '.join(names)}.")
+    
+    # Transit
+    if nearest_transit:
+        t = nearest_transit[0]
+        parts.append(f"Transit access via {t['name']} ({t['dist_m']}m) supports repeat visits.")
+    
+    # Diversity
+    if diversity >= 0.7:
+        parts.append(f"High category diversity ({diversity}) indicates a vibrant commercial precinct.")
+    
+    # Cannibalization warning
+    d_cannibal = signals_raw.get("d_cannibal_m")
+    if d_cannibal is not None and d_cannibal < 500:
+        parts.append(f"⚠️ Cannibalization risk: existing same-brand store only {round(d_cannibal)}m away.")
+    
+    return " ".join(parts)
+
+
 # ─── Per-hex drill-down (for the report panel) ───────────────────────────────
 
 
@@ -280,9 +411,8 @@ def hex_report(vertical_key: str, h3_id: str, brand_slug: str | None = None) -> 
     # Resolve hex center
     lat, lng = h3.cell_to_latlng(h3_id)
 
-    # Get the full HexScore first (single-hex filter done in python since
-    # score_hexes is already cheap and this keeps code DRY)
-    all_scores = score_hexes(vertical_key, brand_slug=brand_slug)
+    # Use cached scores instead of re-scoring all 12K hexes
+    all_scores = _get_cached_scores(vertical_key, brand_slug=brand_slug)
     hit = next((s for s in all_scores if s.h3_id == h3_id), None)
     if hit is None:
         # Compute standalone (hex may be outside POI data but within Sydney)
@@ -324,6 +454,21 @@ def hex_report(vertical_key: str, h3_id: str, brand_slug: str | None = None) -> 
     anchors = nearest("is_anchor", 3, max_m=3000)
     transit = nearest("is_transit", 2, max_m=2000)
 
+    # Compute real diversity index
+    diversity = _compute_diversity(con, lat, lng)
+
+    # Generate AI insight
+    ai_insight = _generate_ai_insight(
+        locality=hit.locality,
+        score=hit.score,
+        signals_raw=hit.signals_raw,
+        nearest_competitors=competitors,
+        nearest_anchors=anchors,
+        nearest_complementary=complementary,
+        nearest_transit=transit,
+        diversity=diversity,
+    )
+
     return {
         "h3_id": hit.h3_id,
         "lat": hit.lat,
@@ -337,4 +482,6 @@ def hex_report(vertical_key: str, h3_id: str, brand_slug: str | None = None) -> 
         "nearest_complementary": complementary,
         "nearest_anchors": anchors,
         "nearest_transit": transit,
+        "diversity_index": diversity,
+        "ai_insight": ai_insight,
     }
