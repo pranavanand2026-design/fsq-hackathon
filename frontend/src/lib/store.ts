@@ -10,6 +10,7 @@ type Store = {
 
   hexes: HexResult[];
   loadingHeatmap: boolean;
+  heatmapError: string | null;
 
   selectedHex: HexReport | null;
   loadingReport: boolean;
@@ -31,6 +32,7 @@ type Store = {
   setBrandSlug: (s: string) => void;
   setHexes: (h: HexResult[]) => void;
   setLoadingHeatmap: (b: boolean) => void;
+  setHeatmapError: (e: string | null) => void;
   setSelectedHex: (r: HexReport | null) => void;
   setLoadingReport: (b: boolean) => void;
   togglePin: (h: HexResult) => void;
@@ -52,6 +54,7 @@ export const useStore = create<Store>((set) => ({
 
   hexes: [],
   loadingHeatmap: false,
+  heatmapError: null,
 
   selectedHex: null,
   loadingReport: false,
@@ -72,6 +75,7 @@ export const useStore = create<Store>((set) => ({
   setBrandSlug: (brandSlug) => set({ brandSlug }),
   setHexes: (hexes) => set({ hexes }),
   setLoadingHeatmap: (loadingHeatmap) => set({ loadingHeatmap }),
+  setHeatmapError: (heatmapError) => set({ heatmapError }),
   setSelectedHex: (selectedHex) => set({ selectedHex }),
   setLoadingReport: (loadingReport) => set({ loadingReport }),
   togglePin: (h) =>

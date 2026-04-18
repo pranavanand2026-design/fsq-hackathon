@@ -28,6 +28,7 @@ export function MapView() {
   const {
     vertical, brandSlug,
     hexes, setHexes, setLoadingHeatmap, loadingHeatmap,
+    heatmapError, setHeatmapError,
     layers,
     setSelectedHex, setLoadingReport,
     flyTo,
@@ -50,9 +51,14 @@ export function MapView() {
   // load heatmap on vertical change
   useEffect(() => {
     setLoadingHeatmap(true);
+    setHeatmapError(null);
     api
       .heatmap(vertical, brandSlug || undefined)
       .then((d) => setHexes(d.hexes))
+      .catch((e) => {
+        setHexes([]);
+        setHeatmapError(e?.message ?? "Failed to load heatmap");
+      })
       .finally(() => setLoadingHeatmap(false));
   }, [vertical, brandSlug]);
 
@@ -174,6 +180,20 @@ export function MapView() {
         <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-bg-panel border border-bg-border rounded-full px-4 py-1.5 text-xs text-fg-secondary flex items-center gap-2 shadow-panel">
           <div className="w-3 h-3 border border-accent border-t-transparent rounded-full animate-spin" />
           Scoring {hexes.length ? `${hexes.length.toLocaleString()} hexes` : "hexes"}…
+        </div>
+      )}
+
+      {/* error banner — backend offline, 500, etc. */}
+      {!loadingHeatmap && heatmapError && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-red-500/15 border border-red-500/40 rounded-full px-4 py-1.5 text-xs text-red-300 flex items-center gap-2 shadow-panel max-w-md">
+          <span className="font-medium">Backend unreachable.</span>
+          <span className="text-red-300/70 truncate">{heatmapError}</span>
+          <button
+            onClick={() => { setHeatmapError(null); setLoadingHeatmap(true); api.heatmap(vertical, brandSlug || undefined).then((d) => setHexes(d.hexes)).catch((e) => setHeatmapError(e?.message ?? "Failed")).finally(() => setLoadingHeatmap(false)); }}
+            className="ml-1 px-2 py-0.5 rounded-full bg-red-500/20 hover:bg-red-500/30 text-red-200"
+          >
+            Retry
+          </button>
         </div>
       )}
 

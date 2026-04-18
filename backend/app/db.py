@@ -16,25 +16,28 @@ _con: duckdb.DuckDBPyConnection | None = None
 
 
 def get_con() -> duckdb.DuckDBPyConnection:
+    """Return a per-call cursor on a shared DuckDB database.
+
+    DuckDB's single connection is NOT safe for concurrent statements
+    (FastAPI runs sync handlers in a threadpool). `.cursor()` hands out
+    an independent statement handle that shares the catalog, so the
+    `pois` view is visible to every request.
+    """
     global _con
-    if _con is not None:
-        return _con
-
-    if not DATA_PARQUET.exists():
-        raise FileNotFoundError(
-            f"Missing {DATA_PARQUET}. Run: python scripts/prepare_sydney.py"
+    if _con is None:
+        if not DATA_PARQUET.exists():
+            raise FileNotFoundError(
+                f"Missing {DATA_PARQUET}. Run: python scripts/prepare_sydney.py"
+            )
+        _con = duckdb.connect()
+        _con.execute(
+            f"""
+            CREATE VIEW pois AS
+            SELECT *
+            FROM read_parquet('{DATA_PARQUET}')
+            """
         )
-
-    con = duckdb.connect()
-    con.execute(
-        f"""
-        CREATE VIEW pois AS
-        SELECT *
-        FROM read_parquet('{DATA_PARQUET}')
-        """
-    )
-    _con = con
-    return con
+    return _con.cursor()
 
 
 @lru_cache(maxsize=1)
