@@ -5,11 +5,15 @@ import { api } from "../lib/api";
 
 
 const BRAND_NAMES: Record<string, string> = {
-  guzmanygomez: "Guzman y Gomez",
-  fishbowl:      "Fishbowl",
-  bettysburgers: "Betty's",
-  rolld:         "Roll'd",
-  gongcha:       "Gong cha",
+  // bubble tea
+  sharetea:   "Sharetea",
+  machimachi: "Machi Machi",
+  // fast casual
+  grilld:     "Grill'd",
+  madmex:     "Mad Mex",
+  // coffee
+  threebeans:   "Three Beans",
+  camposcoffee: "Campos Coffee",
 };
 
 const BRANDS = Object.entries(BRAND_NAMES).map(([slug, name]) => ({ slug, name }));

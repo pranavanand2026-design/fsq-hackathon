@@ -1,93 +1,53 @@
-# GapMap — AI-powered site selection for franchise operators
+# Branchwise
 
-> "GapMaps for the franchisee who can't afford GapMaps."
+**AI-powered site selection for food and beverage operators.**
 
-**Stack:** FastAPI + DuckDB + Foursquare OS Places · React + Vite + deck.gl · Claude API
+## Problem
 
----
+Mid-size F&B brands (3–50 stores) make expansion decisions based on broker shortlists and gut feel. Enterprise location intelligence platforms exist but are priced and designed for analysts, not operators. There is no tool that gives a growing brand a fast, data-backed answer to: *where should we open next?*
 
-## Quick start (2 terminals)
+## Solution
 
-### 1. Backend
+Branchwise scores every 300m zone across Sydney against five spatial signals derived from 233,000 real Foursquare place records. The result is a live heatmap of opportunity across 12,270 hex zones — ranked, explained, and queryable in plain English.
+
+Ask a question. The AI adjusts the scoring weights to match your intent, rescores the entire city, and returns a specific location with a full breakdown.
+
+## Architecture
+
+```
+Data Layer        233K Sydney POIs in a single Parquet file (Foursquare OS Places)
+Scoring Engine    5 spatial signals per hex → normalised 0–100 → weighted opportunity score
+API Layer         FastAPI — /heatmap · /report · /compare · /pins · /chat
+AI Layer          Claude with tool-use — adjusts weights, searches, compares, explains
+Frontend          React + deck.gl H3HexagonLayer + MapLibre
+```
+
+## Scoring Signals
+
+| Signal | Weight | How computed |
+|---|---|---|
+| Surrounding activity | 40% | Anchor proximity + complementary venue density within 300m |
+| Transit access | 30% | Haversine distance to nearest rail, bus, or ferry stop |
+| Demographic match | 20% | Retail and F&B density within 300m as foot traffic proxy |
+| Market saturation | 5% | Competitor count within 500m |
+| Store overlap | 5% | Distance to nearest same-brand store |
+
+## Stack
+
+- **Backend:** FastAPI + DuckDB + Python
+- **Frontend:** React + Vite + deck.gl + MapLibre + Zustand
+- **AI:** Anthropic Claude with tool-use
+- **Data:** Foursquare Open Source Places — 233K Sydney POIs
+
+## Run
 
 ```bash
-# First time only
-python3 -m venv .venv
-pip install -r requirements.txt
-python scripts/prepare_sydney.py      # generates data/sydney_pois.parquet
-
-# Every time
+# Backend
 source .venv/bin/activate
 uvicorn backend.app.main:app --reload --port 8000
+
+# Frontend
+cd frontend && npm run dev
 ```
 
-### 2. Frontend
-
-```bash
-cd frontend
-npm install       # first time only
-npm run dev       # http://localhost:5173
-```
-
----
-
-## Environment variables (optional)
-
-Create `.env` in the repo root:
-
-```
-ANTHROPIC_API_KEY=sk-ant-...   # enables Claude chat (without it: smart offline fallback)
-HF_TOKEN=hf_...                # enables real FSQ data download
-CLAUDE_MODEL=claude-sonnet-4-5 # override model
-```
-
----
-
-## Data
-
-| Source | What | Why |
-|--------|------|-----|
-| Foursquare OS Places | 11,859 Sydney POIs (synthetic) or 200-500K real | All 5 scoring signals |
-| H3 resolution 9 | ~300m hexagons | Grid for opportunity scoring |
-
-Run with real FSQ data:
-```bash
-export HF_TOKEN=hf_your_token
-python scripts/prepare_sydney.py
-```
-
----
-
-## Scoring algorithm (5 signals, all from Foursquare)
-
-| Signal | Weight | Formula |
-|--------|--------|---------|
-| Competition density | 25% | Fewer direct competitors within 500m → higher |
-| Anchor pull | 25% | Closer to uni / mall / hospital → higher |
-| Foot-traffic proxy | 20% | More retail+F&B POIs within 300m → higher |
-| Transit proximity | 15% | Closer to FSQ transit POI → higher |
-| Cannibalization distance | 15% | Farther from nearest same-brand → higher |
-
----
-
-## Demo script (3 min)
-
-1. Select **Bubble Tea** vertical, brand slug `gongcha`
-2. Type in chat: *"Where should I open a bubble tea near universities in the inner west?"*
-3. Map recolors → click best hex → report slides in
-4. Pin location → click Surry Hills hex → **Compare**
-5. Show cannibalization distance beat
-
----
-
-## API endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/health` | Liveness + POI count |
-| GET | `/api/verticals` | Available verticals |
-| POST | `/api/heatmap` | Score all hexes for a vertical |
-| POST | `/api/report` | Full report for one hex |
-| POST | `/api/compare` | Compare 2–3 hexes |
-| GET | `/api/pins` | Competitor/complementary pins in bbox |
-| POST | `/api/chat` | Claude tool-use chat |
+Add `ANTHROPIC_API_KEY` to a `.env` file in the repo root.

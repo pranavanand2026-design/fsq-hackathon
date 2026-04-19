@@ -1,11 +1,11 @@
 """Scoring engine. 5 signals, all from Foursquare data.
 
 Signals (weights sum to 100):
-  - competition_density (25) — fewer direct competitors within 500m = higher
-  - anchor_pull         (25) — closer to nearest anchor (uni, mall, hospital) = higher
-  - foot_traffic_proxy  (20) — more retail+F&B POIs within 300m = higher
-  - transit_proximity   (15) — closer to nearest transit POI = higher
-  - cannibalization     (15) — farther from same-brand = higher
+  - surrounding_amenities (40) — anchor proximity + complementary business density
+  - transit_accessibility (30) — closer to nearest transit POI = higher
+  - demographic_match     (20) — retail+F&B POI density as foot traffic proxy
+  - market_saturation      (5) — fewer direct competitors within 500m = higher
+  - cannibalisation        (5) — farther from same-brand = higher
 """
 
 from __future__ import annotations
@@ -20,11 +20,11 @@ import h3
 from .db import get_con, get_config, get_vertical
 
 WEIGHTS = {
-    "market_saturation": 25,
-    "cannibalisation": 25,
-    "surrounding_amenities": 20,
-    "transit_accessibility": 15,
-    "demographic_match": 15,
+    "market_saturation":      5,
+    "cannibalisation":        5,
+    "surrounding_amenities": 40,
+    "transit_accessibility": 30,
+    "demographic_match":     20,
 }
 
 # Scoring tuning parameters — tunable without code changes
