@@ -34,6 +34,7 @@ class HeatmapRequest(BaseModel):
     vertical: str = Field(..., description="e.g. bubble_tea, coffee, fast_casual")
     brand_slug: str | None = None
     locality: str | None = None
+    weight_overrides: dict[str, float] | None = None
 
 
 class ReportRequest(BaseModel):
@@ -50,6 +51,7 @@ class CompareRequest(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
+    brand_slug: str | None = None
 
 
 # ─── Endpoints ───────────────────────────────────────────────────────────────
@@ -83,7 +85,8 @@ def list_verticals() -> dict:
 def api_heatmap(req: HeatmapRequest) -> dict:
     try:
         scores = score_hexes(
-            req.vertical, brand_slug=req.brand_slug, locality_filter=req.locality
+            req.vertical, brand_slug=req.brand_slug, locality_filter=req.locality,
+            weight_overrides=req.weight_overrides,
         )
     except KeyError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -129,22 +132,28 @@ def api_pins(
     max_lat: float,
     min_lng: float,
     max_lng: float,
+    brand_slug: str | None = None,
     limit: int = 400,
 ) -> dict:
-    """Return competitor + complementary + anchor pins within a bbox."""
+    """Return competitor + complementary + own-brand pins within a bbox."""
     from .scoring import _category_tag_cte
 
     con = get_con()
     tagged = _category_tag_cte(vertical)
+    own_brand_expr = (
+        f"(brand_slug LIKE '{brand_slug.replace(chr(39), chr(39)*2)}%')"
+        if brand_slug else "FALSE"
+    )
     sql = f"""
     WITH {tagged}
     SELECT
       fsq_place_id, name, primary_category, latitude, longitude, locality,
-      is_competitor, is_complementary, is_anchor, is_transit
+      is_competitor, is_complementary, is_anchor, is_transit,
+      {own_brand_expr} AS is_own_brand
     FROM tagged
     WHERE latitude  BETWEEN {min_lat} AND {max_lat}
       AND longitude BETWEEN {min_lng} AND {max_lng}
-      AND (is_competitor OR is_complementary OR is_anchor OR is_transit)
+      AND (is_competitor OR is_complementary OR is_anchor OR is_transit OR {own_brand_expr})
     LIMIT {int(limit)}
     """
     rows = con.execute(sql).fetchall()
@@ -154,4 +163,4 @@ def api_pins(
 
 @app.post("/api/chat")
 def api_chat(req: ChatRequest) -> dict:
-    return claude_chat(req.message)
+    return claude_chat(req.message, brand_slug=req.brand_slug)

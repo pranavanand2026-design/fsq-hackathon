@@ -31,31 +31,73 @@ except Exception:  # pragma: no cover
     OpenAI = None  # type: ignore
 
 from .db import get_config
-from .scoring import hex_report, score_hexes
+from .scoring import WEIGHTS, apply_scenario_weights, hex_report, score_hexes
 
 CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-5")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 
 SYSTEM = """You are GapMap's AI site-selection assistant. You help franchise operators find the best spot to open their next store in Sydney, Australia.
 
-You have two tools:
-  - filter_locations: use this first to translate the user's question into structured filters and fetch ranked candidate locations.
-  - generate_insight: use this after filtering to narrate the top candidate with rich data-backed analysis.
+You have three tools:
+  - set_scenario: call this FIRST when the user expresses a spatial preference or requirement (near universities, avoid competition, transit hub, busy street, etc.). It reweights the scoring model to match their priority.
+  - filter_locations: call this to fetch ranked candidate locations. Always call after set_scenario if one was triggered.
+  - generate_insight: call this after filtering to narrate the top candidate with rich data-backed analysis.
+
+The five scoring signals are:
+  - market_saturation: fewer direct competitors nearby = higher score
+  - cannibalisation: distance from own brand stores
+  - surrounding_amenities: proximity to anchors (unis, malls, hospitals) + complementary venues
+  - transit_accessibility: proximity to train/bus stops
+  - demographic_match: density of retail/F&B foot traffic
 
 Rules:
-  1. Always call filter_locations first with the user's intent translated to vertical + optional locality.
-  2. Available verticals: bubble_tea, coffee, fast_casual. Pick the closest match.
-  3. Keep narration concise but data-rich (2-4 sentences). Cite concrete numbers: distances, competitor counts, anchor names.
+  1. If the user's message implies a spatial priority, call set_scenario first with the relevant boost/suppress signals.
+  2. If their request has no spatial preference (just asking for "best location"), skip set_scenario and go straight to filter_locations.
+  3. Keep narration concise but data-rich (2-4 sentences). Cite concrete numbers.
   4. Do not invent data. Only reference values present in the tool output.
-  5. Component scores are named: market_saturation, cannibalisation, surrounding_amenities, transit_accessibility, demographic_match. If the user asks about "near universities" or "near transit", emphasize surrounding_amenities and transit_accessibility respectively.
-  6. Always mention the opportunity score and the single strongest driver (lowest competition, closest anchor, or best transit).
-  7. If there's a cannibalization risk (same-brand store nearby), flag it as a warning.
+  5. Always mention the opportunity score and the single strongest driver.
+  6. If there's a cannibalization risk (same-brand store nearby), flag it as a warning.
+  7. If part of the user's request can't be mapped to a signal, acknowledge it honestly.
 """
 
 
 def _tools_schema() -> list[dict[str, Any]]:
     verticals = list(get_config()["verticals"].keys())
+    signal_names = list(WEIGHTS.keys())
     return [
+        {
+            "name": "set_scenario",
+            "description": (
+                "Reweight the scoring model to reflect the user's stated priority. "
+                "Call this when the user describes a spatial preference such as 'near universities', "
+                "'avoid competition', 'busy street', 'transit hub', or 'away from our own stores'. "
+                "Returns the adjusted weights and a short explanation."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "boost": {
+                        "type": "array",
+                        "items": {"type": "string", "enum": signal_names},
+                        "description": "Signals to boost (2.5× weight). Pick signals that match the user's priority.",
+                    },
+                    "suppress": {
+                        "type": "array",
+                        "items": {"type": "string", "enum": signal_names},
+                        "description": "Signals to down-weight (0.3× weight). Optional.",
+                    },
+                    "label": {
+                        "type": "string",
+                        "description": "Short human-readable label shown on the map, e.g. 'Near universities'.",
+                    },
+                    "unmapped": {
+                        "type": "string",
+                        "description": "Part of the user's request that couldn't be mapped to any signal. Null if everything mapped.",
+                    },
+                },
+                "required": ["boost", "label"],
+            },
+        },
         {
             "name": "filter_locations",
             "description": (
@@ -112,12 +154,28 @@ def _tools_schema() -> list[dict[str, Any]]:
     ]
 
 
+def _run_set_scenario(**kwargs) -> dict:
+    boost = kwargs.get("boost") or []
+    suppress = kwargs.get("suppress") or []
+    label = kwargs["label"]
+    unmapped = kwargs.get("unmapped")
+    weights = apply_scenario_weights(boost, suppress)
+    return {
+        "boost": boost,
+        "suppress": suppress,
+        "label": label,
+        "unmapped": unmapped,
+        "weights": weights,
+    }
+
+
 def _run_filter_locations(**kwargs) -> dict:
     vertical = kwargs["vertical"]
     locality = kwargs.get("locality")
     brand_slug = kwargs.get("brand_slug")
     limit = int(kwargs.get("limit") or 5)
-    scores = score_hexes(vertical, brand_slug=brand_slug, locality_filter=locality)
+    weight_overrides = kwargs.get("weight_overrides")
+    scores = score_hexes(vertical, brand_slug=brand_slug, locality_filter=locality, weight_overrides=weight_overrides)
     scores.sort(key=lambda s: -s.score)
     top = scores[:limit]
     return {
@@ -145,12 +203,13 @@ def _run_generate_insight(**kwargs) -> dict:
 
 
 TOOL_IMPLS = {
+    "set_scenario": _run_set_scenario,
     "filter_locations": _run_filter_locations,
     "generate_insight": _run_generate_insight,
 }
 
 
-def chat(user_message: str, max_turns: int = 4) -> dict:
+def chat(user_message: str, max_turns: int = 4, brand_slug: str | None = None) -> dict:
     """Run a user message through an LLM with tool use.
 
     Returns:
@@ -172,20 +231,20 @@ def chat(user_message: str, max_turns: int = 4) -> dict:
 
     if openai_key and OpenAI is not None:
         try:
-            return _chat_openai(user_message, max_turns=max_turns)
-        except Exception as exc:  # degrade gracefully so the demo never dies
+            return _chat_openai(user_message, max_turns=max_turns, brand_slug=brand_slug)
+        except Exception as exc:
             return _offline_fallback(user_message, error=f"OpenAI error: {exc}")
 
     if anthropic_key and Anthropic is not None:
         try:
-            return _chat_anthropic(user_message, max_turns=max_turns)
+            return _chat_anthropic(user_message, max_turns=max_turns, brand_slug=brand_slug)
         except Exception as exc:
             return _offline_fallback(user_message, error=f"Claude error: {exc}")
 
     return _offline_fallback(user_message)
 
 
-def _chat_openai(user_message: str, max_turns: int) -> dict:
+def _chat_openai(user_message: str, max_turns: int, brand_slug: str | None = None) -> dict:
     """OpenAI Chat Completions with function-calling (tools)."""
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
@@ -208,6 +267,7 @@ def _chat_openai(user_message: str, max_turns: int) -> dict:
     ]
     tool_calls_log: list[dict[str, Any]] = []
     highlight: dict | None = None
+    scenario: dict | None = None
 
     for _ in range(max_turns):
         resp = client.chat.completions.create(
@@ -224,11 +284,10 @@ def _chat_openai(user_message: str, max_turns: int) -> dict:
                 "reply": (msg.content or "").strip() or "(no response)",
                 "tool_calls": tool_calls_log,
                 "highlight": highlight,
+                "scenario": scenario,
                 "_provider": "openai",
             }
 
-        # Append the assistant turn exactly as returned (OpenAI needs the
-        # tool_calls IDs to line up with the follow-up tool messages).
         messages.append(
             {
                 "role": "assistant",
@@ -251,7 +310,14 @@ def _chat_openai(user_message: str, max_turns: int) -> dict:
             except json.JSONDecodeError:
                 args = {}
             try:
+                if name == "filter_locations":
+                    if scenario:
+                        args["weight_overrides"] = scenario["weights"]
+                    if brand_slug and not args.get("brand_slug"):
+                        args["brand_slug"] = brand_slug
                 output = TOOL_IMPLS[name](**args)
+                if name == "set_scenario":
+                    scenario = output
                 if name == "filter_locations" and output.get("results"):
                     highlight = output["results"][0]
             except Exception as exc:
@@ -269,17 +335,19 @@ def _chat_openai(user_message: str, max_turns: int) -> dict:
         "reply": "(Maxed out tool turns without a final answer.)",
         "tool_calls": tool_calls_log,
         "highlight": highlight,
+        "scenario": scenario,
         "_provider": "openai",
     }
 
 
-def _chat_anthropic(user_message: str, max_turns: int) -> dict:
+def _chat_anthropic(user_message: str, max_turns: int, brand_slug: str | None = None) -> dict:
     """Claude tool-use (kept for fallback / symmetry)."""
     client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     tools = _tools_schema()
     messages: list[dict[str, Any]] = [{"role": "user", "content": user_message}]
     tool_calls_log: list[dict[str, Any]] = []
     highlight: dict | None = None
+    scenario: dict | None = None
 
     for _ in range(max_turns):
         resp = client.messages.create(
@@ -296,6 +364,7 @@ def _chat_anthropic(user_message: str, max_turns: int) -> dict:
                 "reply": final_text or "(no response)",
                 "tool_calls": tool_calls_log,
                 "highlight": highlight,
+                "scenario": scenario,
                 "_provider": "anthropic",
             }
 
@@ -303,9 +372,16 @@ def _chat_anthropic(user_message: str, max_turns: int) -> dict:
         tool_results: list[dict[str, Any]] = []
         for tu in tool_uses:
             name = tu.name
-            args = tu.input
+            args = dict(tu.input)
             try:
+                if name == "filter_locations":
+                    if scenario:
+                        args["weight_overrides"] = scenario["weights"]
+                    if brand_slug and not args.get("brand_slug"):
+                        args["brand_slug"] = brand_slug
                 output = TOOL_IMPLS[name](**args)
+                if name == "set_scenario":
+                    scenario = output
                 if name == "filter_locations" and output.get("results"):
                     highlight = output["results"][0]
             except Exception as exc:
@@ -324,6 +400,7 @@ def _chat_anthropic(user_message: str, max_turns: int) -> dict:
         "reply": "(Maxed out tool turns without a final answer.)",
         "tool_calls": tool_calls_log,
         "highlight": highlight,
+        "scenario": scenario,
         "_provider": "anthropic",
     }
 
@@ -474,6 +551,7 @@ def _offline_fallback(user_message: str, error: str | None = None) -> dict:
         "reply": reply,
         "tool_calls": [{"name": "filter_locations", "input": {"vertical": vertical, "locality": locality}, "output": out}],
         "highlight": top,
+        "scenario": None,
         "_offline": True,
         "_provider": "offline",
     }

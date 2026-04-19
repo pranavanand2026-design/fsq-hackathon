@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import ReactMarkdown from "react-markdown";
 import { X, Pin } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ScoreBar } from "./ScoreBar";
@@ -24,7 +25,6 @@ export function ReportPanel() {
   const { selectedHex: r, setSelectedHex, togglePin, pinned, setCompareOpen, loadingReport } = useStore();
   const pinCount = pinned.length;
 
-  // Esc closes the panel.
   useEffect(() => {
     if (!r) return;
     const onKey = (e: KeyboardEvent) => {
@@ -44,14 +44,14 @@ export function ReportPanel() {
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: 380, opacity: 0 }}
           transition={{ type: "spring", stiffness: 320, damping: 30 }}
-          className="absolute right-0 top-0 h-full w-[360px] bg-white border-l border-gray-200 flex flex-col z-20 overflow-hidden"
-          style={{ boxShadow: "-4px 0 24px rgba(15, 23, 42, 0.08)" }}
+          className="absolute right-0 top-0 h-full w-[360px] bg-white border-l border-bg-border flex flex-col z-20 overflow-hidden pointer-events-auto"
+          style={{ boxShadow: "-6px 0 32px rgba(15, 23, 42, 0.08)" }}
         >
-          {/* top progress bar — visible only while refetching over an existing report */}
           {loadingReport && (
             <div className="absolute top-0 left-0 right-0 h-0.5 overflow-hidden z-30">
               <motion.div
-                className="h-full bg-emerald-500"
+                className="h-full"
+                style={{ backgroundColor: '#5B9BFF' }}
                 initial={{ x: "-40%", width: "40%" }}
                 animate={{ x: "120%" }}
                 transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
@@ -102,7 +102,7 @@ function ReportBody({
   const competitionLabel =
     nComp === 0 ? "Low (0)" : nComp <= 3 ? `Medium (${nComp})` : `High (${nComp})`;
   const competitionColor =
-    nComp === 0 ? "#10B981" : nComp <= 3 ? "#F59E0B" : "#EF4444";
+    nComp === 0 ? "#3BB273" : nComp <= 3 ? "#F5A623" : "#E85D5D";
 
   const rankStr =
     r.rank != null && r.rank_total
@@ -115,15 +115,14 @@ function ReportBody({
 
   return (
     <>
-      {/* scrollable content */}
       <div className="flex-1 overflow-y-auto">
         {/* header */}
         <div className="flex items-start justify-between px-6 pt-6 pb-4">
           <div className="min-w-0">
-            <h2 className="text-xl font-bold text-gray-900 leading-tight truncate">
+            <h2 className="font-display text-xl font-bold text-fg-primary leading-tight truncate tracking-tight">
               {r.locality ?? "Sydney Area"}
             </h2>
-            <p className="text-sm text-gray-400 mt-0.5 truncate">{subtitle(r)}</p>
+            <p className="text-sm text-fg-tertiary mt-0.5 truncate">{subtitle(r)}</p>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0 ml-2">
             <button
@@ -131,15 +130,16 @@ function ReportBody({
               title={isPinned ? "Unpin" : "Pin for compare"}
               className={`p-1.5 rounded-lg transition-colors ${
                 isPinned
-                  ? "bg-emerald-50 text-emerald-600"
-                  : "text-gray-400 hover:text-gray-700 hover:bg-gray-50"
+                  ? "text-white"
+                  : "text-fg-tertiary hover:text-fg-primary hover:bg-bg-elevated"
               }`}
+              style={isPinned ? { backgroundColor: '#5B9BFF' } : {}}
             >
-              <Pin size={16} className={isPinned ? "fill-emerald-500" : ""} />
+              <Pin size={16} className={isPinned ? "fill-white" : ""} />
             </button>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-700 transition-colors p-1.5 rounded-lg hover:bg-gray-50"
+              className="text-fg-tertiary hover:text-fg-primary transition-colors p-1.5 rounded-lg hover:bg-bg-elevated"
             >
               <X size={18} />
             </button>
@@ -147,22 +147,22 @@ function ReportBody({
         </div>
 
         {/* score hero */}
-        <div className="mx-6 mb-5 bg-gradient-to-br from-gray-50 to-white border border-gray-100 rounded-2xl px-6 py-5 text-center">
-          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] mb-2">
+        <div className="mx-6 mb-5 bg-gradient-to-br from-bg-elevated to-white border border-bg-border rounded-2xl px-6 py-5 text-center">
+          <div className="text-[10px] font-bold text-fg-tertiary uppercase tracking-[0.15em] mb-2">
             Opportunity Score
           </div>
           <div className="flex items-end justify-center gap-1">
             <span
-              className="text-[56px] font-extrabold tabular tracking-tighter leading-none"
+              className="font-display text-[64px] font-bold tabular tracking-[-0.04em] leading-none"
               style={{ color: scoreHex(r.score) }}
             >
               {r.score}
             </span>
-            <span className="text-xl text-gray-300 font-bold mb-2">/100</span>
+            <span className="text-2xl text-gray-300 font-bold mb-3">/100</span>
           </div>
           <div className="mt-2 flex items-center justify-center gap-2">
             <span
-              className="text-[11px] font-bold uppercase tracking-wider"
+              className="font-display text-[11px] font-bold uppercase tracking-wider"
               style={{ color: scoreHex(r.score) }}
             >
               {scoreLabel(r.score)}
@@ -170,7 +170,7 @@ function ReportBody({
             {rankStr && (
               <>
                 <span className="text-gray-300 text-xs">·</span>
-                <span className="text-[11px] text-gray-500 font-medium tabular">
+                <span className="text-[11px] text-fg-tertiary font-medium tabular">
                   {rankStr}
                 </span>
               </>
@@ -200,7 +200,7 @@ function ReportBody({
 
         {/* score breakdown */}
         <div className="px-6 pt-5 pb-4">
-          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] mb-3">
+          <div className="text-[10px] font-bold text-fg-tertiary uppercase tracking-[0.15em] mb-3">
             Score Breakdown
           </div>
           <div className="space-y-2.5">
@@ -211,23 +211,21 @@ function ReportBody({
         </div>
 
         {/* nearby competitors */}
-        <div className="px-6 py-4 border-t border-gray-100">
-          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] mb-3">
+        <div className="px-6 py-4 border-t border-bg-border">
+          <div className="text-[10px] font-bold text-fg-tertiary uppercase tracking-[0.15em] mb-3">
             Nearby Competitors
           </div>
           {r.nearest_competitors.length === 0 ? (
-            <div className="text-sm text-emerald-600 font-medium py-1 flex items-center gap-1.5">
-              <span
-                className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"
-              />
+            <div className="text-sm text-score-high font-medium py-1 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-score-high inline-block" />
               No direct competitors within 2km
             </div>
           ) : (
             <div className="space-y-2">
               {r.nearest_competitors.slice(0, 4).map((c, i) => (
                 <div key={i} className="flex justify-between items-center">
-                  <span className="text-sm text-gray-700 font-medium truncate">{c.name}</span>
-                  <span className="text-xs text-gray-400 tabular ml-2 flex-shrink-0">
+                  <span className="text-sm text-fg-primary font-medium truncate">{c.name}</span>
+                  <span className="text-xs text-fg-tertiary tabular ml-2 flex-shrink-0">
                     {dist(c.dist_m)}
                   </span>
                 </div>
@@ -238,15 +236,15 @@ function ReportBody({
 
         {/* complementary */}
         {r.nearest_complementary.length > 0 && (
-          <div className="px-6 py-4 border-t border-gray-100">
-            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] mb-3">
+          <div className="px-6 py-4 border-t border-bg-border">
+            <div className="text-[10px] font-bold text-fg-tertiary uppercase tracking-[0.15em] mb-3">
               Complementary
             </div>
             <div className="space-y-2">
               {r.nearest_complementary.slice(0, 4).map((c, i) => (
                 <div key={i} className="flex justify-between items-center">
-                  <span className="text-sm text-gray-700 font-medium truncate">{c.name}</span>
-                  <span className="text-xs text-gray-400 tabular ml-2 flex-shrink-0">
+                  <span className="text-sm text-fg-primary font-medium truncate">{c.name}</span>
+                  <span className="text-xs text-fg-tertiary tabular ml-2 flex-shrink-0">
                     {dist(c.dist_m)}
                   </span>
                 </div>
@@ -256,44 +254,58 @@ function ReportBody({
         )}
 
         {/* AI Insight */}
-        <div className="px-6 py-4 border-t border-gray-100">
+        <div className="px-6 py-4 border-t border-bg-border">
           <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-1 h-full bg-amber-400 rounded-l-xl" />
-            <div className="text-[10px] font-bold text-amber-700 uppercase tracking-[0.15em] mb-2 flex items-center gap-1.5">
+            <div className="text-[10px] font-bold text-amber-700 uppercase tracking-[0.15em] mb-2">
               AI Insight
             </div>
-            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
-              {r.ai_insight ??
-                `${r.locality ?? "This area"} shows potential based on the surrounding business mix and competitive landscape.`}
-            </p>
+            <div className="text-sm text-fg-secondary leading-relaxed">
+              <ReactMarkdown
+                components={{
+                  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                  strong: ({ children }) => <strong className="font-semibold text-fg-primary">{children}</strong>,
+                  ul: ({ children }) => <ul className="mt-1 mb-2 space-y-1 pl-3 list-disc">{children}</ul>,
+                  li: ({ children }) => <li className="text-fg-secondary">{children}</li>,
+                }}
+              >
+                {r.ai_insight ?? `${r.locality ?? "This area"} shows potential based on the surrounding business mix and competitive landscape.`}
+              </ReactMarkdown>
+            </div>
           </div>
         </div>
       </div>
 
       {/* sticky footer */}
-      <div className="px-6 py-4 border-t border-gray-100 bg-white">
+      <div className="px-6 py-4 border-t border-bg-border bg-white">
         {isPinned && pinCount >= 2 ? (
           <button
             onClick={openCompare}
-            className="w-full py-3 rounded-xl text-sm font-bold bg-emerald-500 text-white hover:bg-emerald-600 active:bg-emerald-700 transition-colors shadow-sm"
+            className="w-full py-3 rounded-xl text-sm font-bold text-white transition-colors shadow-sm" style={{ backgroundColor: '#5B9BFF' }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#0065F0'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#5B9BFF'; }}
           >
             Open compare ({pinCount})
           </button>
         ) : isPinned ? (
-          <div className="text-center text-xs text-gray-500 py-2.5 font-medium">
+          <div className="text-center text-xs text-fg-tertiary py-2.5 font-medium">
             Pinned · pin another location to compare
           </div>
         ) : pinCount >= 1 ? (
           <button
             onClick={() => { togglePin(hexResult); openCompare(); }}
-            className="w-full py-3 rounded-xl text-sm font-bold bg-emerald-500 text-white hover:bg-emerald-600 active:bg-emerald-700 transition-colors shadow-sm"
+            className="w-full py-3 rounded-xl text-sm font-bold text-white transition-colors shadow-sm" style={{ backgroundColor: '#5B9BFF' }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#0065F0'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#5B9BFF'; }}
           >
             Pin &amp; compare ({pinCount + 1})
           </button>
         ) : (
           <button
             onClick={() => togglePin(hexResult)}
-            className="w-full py-3 rounded-xl text-sm font-bold bg-emerald-500 text-white hover:bg-emerald-600 active:bg-emerald-700 transition-colors shadow-sm"
+            className="w-full py-3 rounded-xl text-sm font-bold text-white transition-colors shadow-sm" style={{ backgroundColor: '#5B9BFF' }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#0065F0'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#5B9BFF'; }}
           >
             Pin this location
           </button>
@@ -313,8 +325,8 @@ function MetricRow({
   valueColor: string;
 }) {
   return (
-    <div className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-b-0">
-      <span className="text-sm text-gray-600 font-medium">{label}</span>
+    <div className="flex items-center justify-between py-2.5 border-b border-bg-border last:border-b-0">
+      <span className="text-sm text-fg-secondary font-medium">{label}</span>
       <span
         className="text-sm font-bold tabular truncate ml-3 max-w-[60%] text-right"
         style={{ color: valueColor }}
@@ -334,26 +346,26 @@ function ReportSkeleton() {
       animate={{ x: 0, opacity: 1 }}
       exit={{ x: 380, opacity: 0 }}
       transition={{ type: "spring", stiffness: 320, damping: 30 }}
-      className="absolute right-0 top-0 h-full w-[360px] bg-white border-l border-gray-200 z-20"
-      style={{ boxShadow: "-4px 0 24px rgba(15, 23, 42, 0.08)" }}
+      className="absolute right-0 top-0 h-full w-[360px] bg-white border-l border-bg-border z-20 pointer-events-auto"
+      style={{ boxShadow: "-6px 0 32px rgba(15, 23, 42, 0.08)" }}
     >
       <div className="p-6 space-y-5 animate-pulse">
-        <div className="h-5 w-40 bg-gray-100 rounded" />
-        <div className="h-3 w-28 bg-gray-100 rounded" />
-        <div className="h-28 bg-gray-50 border border-gray-100 rounded-2xl" />
+        <div className="h-5 w-40 bg-bg-elevated rounded" />
+        <div className="h-3 w-28 bg-bg-elevated rounded" />
+        <div className="h-28 bg-bg-elevated border border-bg-border rounded-2xl" />
         <div className="space-y-3">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="flex justify-between">
-              <div className="h-3 w-24 bg-gray-100 rounded" />
-              <div className="h-3 w-20 bg-gray-100 rounded" />
+              <div className="h-3 w-24 bg-bg-elevated rounded" />
+              <div className="h-3 w-20 bg-bg-elevated rounded" />
             </div>
           ))}
         </div>
         <div className="space-y-2.5">
           {[...Array(5)].map((_, i) => (
             <div key={i}>
-              <div className="h-3 w-32 bg-gray-100 rounded mb-1.5" />
-              <div className="h-1.5 w-full bg-gray-100 rounded-full" />
+              <div className="h-3 w-32 bg-bg-elevated rounded mb-1.5" />
+              <div className="h-1.5 w-full bg-bg-elevated rounded-full" />
             </div>
           ))}
         </div>

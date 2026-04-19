@@ -5,24 +5,33 @@ export default {
     extend: {
       colors: {
         bg: {
-          base:    "#F3F4F6",
+          base:    "#F3F7FF",
           panel:   "#FFFFFF",
-          elevated:"#F9FAFB",
-          border:  "#E5E7EB",
+          elevated:"#EBF1FB",
+          border:  "#D8E2F0",
         },
         fg: {
           primary:   "#111827",
-          secondary: "#4B5563",
-          tertiary:  "#9CA3AF",
+          secondary: "#64748B",
+          tertiary:  "#94A3B8",
+        },
+        brand: {
+          50:  "#EEF4FF",
+          100: "#DBEAFE",
+          300: "#1174FB",
+          400: "#0065F0",
+          500: "#0049AD",
+          600: "#003A8A",
+          700: "#002D6B",
         },
         accent: {
-          DEFAULT: "#10B981",
-          dim:     "rgba(16, 185, 129, 0.15)",
+          DEFAULT: "#F5A623",
+          dim:     "rgba(245, 166, 35, 0.12)",
         },
         score: {
-          high:   "#10B981",
-          mid:    "#F59E0B",
-          low:    "#EF4444",
+          high:   "#3BB273",
+          mid:    "#F5A623",
+          low:    "#E85D5D",
         },
       },
       fontFamily: {
@@ -35,13 +44,20 @@ export default {
           "Roboto",
           "sans-serif",
         ],
+        display: [
+          "Space Grotesk",
+          "Inter",
+          "ui-sans-serif",
+          "sans-serif",
+        ],
         mono: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
       fontFeatureSettings: {
         tabular: '"tnum"',
       },
       boxShadow: {
-        panel: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+        panel: "0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.04)",
+        card:  "0 2px 8px rgba(0,0,0,0.06)",
       },
     },
   },

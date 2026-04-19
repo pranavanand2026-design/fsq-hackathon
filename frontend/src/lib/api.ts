@@ -34,6 +34,7 @@ export type Pin = {
   is_complementary: boolean;
   is_anchor: boolean;
   is_transit: boolean;
+  is_own_brand: boolean;
 };
 
 export type NearPoi = {
@@ -74,10 +75,19 @@ export type HexReport = {
   ai_insight: string;
 };
 
+export type Scenario = {
+  boost: string[];
+  suppress: string[];
+  label: string;
+  unmapped: string | null;
+  weights: Record<string, number>;
+};
+
 export type ChatResponse = {
   reply: string;
   tool_calls: { name: string; input: any; output: any }[];
   highlight: HexResult | null;
+  scenario: Scenario | null;
   _offline?: boolean;
 };
 
@@ -100,10 +110,10 @@ async function get<T>(url: string): Promise<T> {
 export const api = {
   verticals: () => get<{ verticals: Vertical[] }>("/api/verticals"),
 
-  heatmap: (vertical: string, brand_slug?: string, locality?: string) =>
+  heatmap: (vertical: string, brand_slug?: string, locality?: string, weight_overrides?: Record<string, number>) =>
     post<{ vertical: string; count: number; hexes: HexResult[] }>(
       "/api/heatmap",
-      { vertical, brand_slug, locality }
+      { vertical, brand_slug, locality, weight_overrides }
     ),
 
   report: (vertical: string, h3_id: string, brand_slug?: string) =>
@@ -118,15 +128,17 @@ export const api = {
 
   pins: (
     vertical: string,
-    bounds: { min_lat: number; max_lat: number; min_lng: number; max_lng: number }
+    bounds: { min_lat: number; max_lat: number; min_lng: number; max_lng: number },
+    brand_slug?: string,
   ) => {
     const q = new URLSearchParams({
       vertical,
       ...Object.fromEntries(Object.entries(bounds).map(([k, v]) => [k, String(v)])),
       limit: "500",
     });
+    if (brand_slug) q.set("brand_slug", brand_slug);
     return get<{ pins: Pin[] }>(`/api/pins?${q.toString()}`);
   },
 
-  chat: (message: string) => post<ChatResponse>("/api/chat", { message }),
+  chat: (message: string, brand_slug?: string) => post<ChatResponse>("/api/chat", { message, brand_slug }),
 };

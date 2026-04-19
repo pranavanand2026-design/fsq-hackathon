@@ -10,7 +10,7 @@ html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
-  background: #FFFFFF;
+  background: #F3F7FF;
   color: #111827;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -24,12 +24,12 @@ select, input, textarea, button {
 
 /* MapLibre canvas should fill its container */
 .maplibregl-canvas { outline: none !important; }
-.maplibregl-map { background: #F3F4F6 !important; }
+.maplibregl-map { background: #E8EEF8 !important; }
 
 /* Scrollbars — light theme */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 8px; }
+::-webkit-scrollbar-thumb { background: #D1C9BC; border-radius: 8px; }
 ::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
 
 .tabular { font-variant-numeric: tabular-nums; }

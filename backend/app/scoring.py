@@ -61,11 +61,11 @@ class HexScore:
 
 
 def _match_any_clause(labels: list[str], alias: str = "primary_category") -> str:
-    """Build a SQL clause: (<alias> = 'L1' OR <alias> = 'L2' OR ...). Case-insensitive."""
+    """Build a SQL clause matching trimmed column against labels. Case-insensitive."""
     if not labels:
         return "FALSE"
     quoted = [l.replace("'", "''") for l in labels]
-    return "(" + " OR ".join(f"LOWER({alias}) = LOWER('{l}')" for l in quoted) + ")"
+    return "(" + " OR ".join(f"LOWER(TRIM({alias})) = LOWER('{l}')" for l in quoted) + ")"
 
 
 def _category_tag_cte(vertical_key: str) -> str:
@@ -163,22 +163,45 @@ def _score_cannibalisation(dist_m: float | None) -> float:
     )
 
 
+def apply_scenario_weights(boost: list[str], suppress: list[str]) -> dict[str, float]:
+    """Compute adjusted weights from boost/suppress signal names."""
+    weights = {k: float(v) for k, v in WEIGHTS.items()}
+    for k in boost:
+        if k in weights:
+            weights[k] *= 2.5
+    for k in suppress:
+        if k in weights:
+            weights[k] *= 0.3
+    total = sum(weights.values())
+    return {k: round(v / total * 100, 1) for k, v in weights.items()}
+
+
 # ─── Caching layer ──────────────────────────────────────────────────────────
 
-# Cache keyed on (vertical, brand_slug, locality) — avoids re-scoring 12K hexes
-# for every hex_report() and compare() call. Cleared on restart.
+# Cache keyed on (vertical, brand_slug, locality, weight_overrides_frozen)
 _score_cache: dict[tuple, list[HexScore]] = {}
 
 
-def _cache_key(vertical: str, brand_slug: str | None, locality: str | None) -> tuple:
-    return (vertical, brand_slug or "", locality or "")
+def _cache_key(
+    vertical: str,
+    brand_slug: str | None,
+    locality: str | None,
+    weight_overrides: dict[str, float] | None = None,
+) -> tuple:
+    weights_key = tuple(sorted(weight_overrides.items())) if weight_overrides else ()
+    return (vertical, brand_slug or "", locality or "", weights_key)
 
 
-def _get_cached_scores(vertical: str, brand_slug: str | None = None, locality: str | None = None) -> list[HexScore]:
+def _get_cached_scores(
+    vertical: str,
+    brand_slug: str | None = None,
+    locality: str | None = None,
+    weight_overrides: dict[str, float] | None = None,
+) -> list[HexScore]:
     """Return cached scores or compute and cache them."""
-    key = _cache_key(vertical, brand_slug, locality)
+    key = _cache_key(vertical, brand_slug, locality, weight_overrides)
     if key not in _score_cache:
-        _score_cache[key] = _score_hexes_impl(vertical, brand_slug, locality)
+        _score_cache[key] = _score_hexes_impl(vertical, brand_slug, locality, weight_overrides)
     return _score_cache[key]
 
 
@@ -189,6 +212,7 @@ def _score_hexes_impl(
     vertical_key: str,
     brand_slug: str | None = None,
     locality_filter: str | None = None,
+    weight_overrides: dict[str, float] | None = None,
 ) -> list[HexScore]:
     """Internal implementation of score_hexes (called by cache)."""
     con = get_con()
@@ -267,8 +291,9 @@ def _score_hexes_impl(
             "transit_accessibility": round(_score_transit_accessibility(d["d_transit_m"])),
             "demographic_match":     round(_score_demographic_match(d["n_retail"])),
         }
+        effective_weights = weight_overrides or WEIGHTS
         total = round(
-            sum(components[k] * (WEIGHTS[k] / 100.0) for k in WEIGHTS)
+            sum(components[k] * (effective_weights[k] / 100.0) for k in effective_weights)
         )
         out.append(
             HexScore(
@@ -297,6 +322,7 @@ def score_hexes(
     vertical_key: str,
     brand_slug: str | None = None,
     locality_filter: str | None = None,
+    weight_overrides: dict[str, float] | None = None,
 ) -> list[HexScore]:
     """Score every hex that has POIs; optionally filter by locality.
 
@@ -304,8 +330,9 @@ def score_hexes(
 
     brand_slug: normalized slug of the user's own brand (for cannibalization).
                 If None, cannibalization signal is neutral (100).
+    weight_overrides: if provided, replaces WEIGHTS for the weighted sum only.
     """
-    return _get_cached_scores(vertical_key, brand_slug, locality_filter)
+    return _get_cached_scores(vertical_key, brand_slug, locality_filter, weight_overrides)
 
 
 # ─── Diversity Index ─────────────────────────────────────────────────────────

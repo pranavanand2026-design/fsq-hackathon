@@ -1,7 +1,7 @@
 import { create } from "zustand";
-import type { HexResult, HexReport, Vertical } from "./api";
+import type { HexResult, HexReport, Scenario, Vertical } from "./api";
 
-type Layer = "competitors" | "complementary" | "opportunity";
+type Layer = "competitors" | "complementary" | "opportunity" | "own_brand";
 
 type Store = {
   verticals: Vertical[];
@@ -20,8 +20,12 @@ type Store = {
 
   layers: Record<Layer, boolean>;
 
+  scenario: Scenario | null;
+
   // imperative fly-to target for the map: bumped each time, consumed by MapView
   flyTo: { lat: number; lng: number; zoom: number; tick: number } | null;
+
+  sidebarOpen: boolean;
 
   chatOpen: boolean;
   chatHistory: { role: "user" | "assistant"; text: string; offline?: boolean }[];
@@ -39,7 +43,9 @@ type Store = {
   clearPinned: () => void;
   setCompareOpen: (b: boolean) => void;
   toggleLayer: (l: Layer) => void;
+  setScenario: (s: Scenario | null) => void;
   flyToLocation: (lat: number, lng: number, zoom?: number) => void;
+  setSidebarOpen: (b: boolean) => void;
   setChatOpen: (b: boolean) => void;
   pushChat: (
     m: { role: "user" | "assistant"; text: string; offline?: boolean }
@@ -62,9 +68,13 @@ export const useStore = create<Store>((set) => ({
   pinned: [],
   compareOpen: false,
 
-  layers: { competitors: true, complementary: false, opportunity: true },
+  layers: { competitors: true, complementary: false, opportunity: true, own_brand: true },
+
+  scenario: null,
 
   flyTo: null,
+
+  sidebarOpen: true,
 
   chatOpen: true,
   chatHistory: [],
@@ -97,8 +107,10 @@ export const useStore = create<Store>((set) => ({
   setCompareOpen: (compareOpen) => set({ compareOpen }),
   toggleLayer: (l) =>
     set((s) => ({ layers: { ...s.layers, [l]: !s.layers[l] } })),
+  setScenario: (scenario) => set({ scenario }),
   flyToLocation: (lat, lng, zoom = 15) =>
     set((s) => ({ flyTo: { lat, lng, zoom, tick: (s.flyTo?.tick ?? 0) + 1 } })),
+  setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
   setChatOpen: (chatOpen) => set({ chatOpen }),
   pushChat: (m) => set((s) => ({ chatHistory: [...s.chatHistory, m] })),
   setChatLoading: (chatLoading) => set({ chatLoading }),
