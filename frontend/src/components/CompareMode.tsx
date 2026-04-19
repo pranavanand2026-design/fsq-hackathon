@@ -1,17 +1,31 @@
+import { useEffect } from "react";
 import { X } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useStore } from "../lib/store";
 import { ScoreBar } from "./ScoreBar";
 import { scoreHex, scoreLabel } from "../lib/colors";
 
 export function CompareMode() {
   const { compareOpen, setCompareOpen, pinned, clearPinned } = useStore();
+
+  useEffect(() => {
+    if (!compareOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setCompareOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [compareOpen, setCompareOpen]);
+
   if (!compareOpen || pinned.length < 1) return null;
 
   return (
+    <AnimatePresence>
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={(e) => { if (e.target === e.currentTarget) setCompareOpen(false); }}
       className="absolute inset-0 z-30 bg-gray-900/20 backdrop-blur-sm flex flex-col"
     >
       <div className="flex items-center justify-between px-8 py-5 border-b border-gray-200 bg-white">
@@ -56,12 +70,18 @@ export function CompareMode() {
               </div>
 
               <div className="pt-3 border-t border-gray-100 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">🔴 Competitors (500m)</span>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
+                    Competitors (500m)
+                  </span>
                   <span className="text-gray-900 tabular font-bold">{h.n_competitors}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">🟢 Complementary (300m)</span>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-indigo-500 inline-block" />
+                    Complementary (300m)
+                  </span>
                   <span className="text-gray-900 tabular font-bold">{h.n_complementary}</span>
                 </div>
               </div>
@@ -85,5 +105,6 @@ export function CompareMode() {
         </button>
       </div>
     </motion.div>
+    </AnimatePresence>
   );
 }

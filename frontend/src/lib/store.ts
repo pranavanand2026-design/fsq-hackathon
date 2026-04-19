@@ -71,7 +71,15 @@ export const useStore = create<Store>((set) => ({
   chatLoading: false,
 
   setVerticals: (verticals) => set({ verticals }),
-  setVertical: (vertical) => set({ vertical }),
+  setVertical: (vertical) =>
+    set({
+      vertical,
+      // scores are vertical-specific; stale pins/reports would mislead
+      pinned: [],
+      selectedHex: null,
+      compareOpen: false,
+      heatmapError: null,
+    }),
   setBrandSlug: (brandSlug) => set({ brandSlug }),
   setHexes: (hexes) => set({ hexes }),
   setLoadingHeatmap: (loadingHeatmap) => set({ loadingHeatmap }),

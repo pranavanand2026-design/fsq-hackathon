@@ -20,7 +20,8 @@ export default function App() {
     async (h: HexResult) => {
       // 1. Fly the map immediately — the "wow moment"
       flyToLocation(h.lat, h.lng, 14.5);
-      // 2. Fetch the full report in parallel
+      // 2. Keep any currently-open report visible so the panel content swaps
+      //    smoothly instead of unmounting + re-animating.
       setLoadingReport(true);
       try {
         const r = await api.report(vertical, h.h3_id, brandSlug || undefined);
@@ -29,7 +30,7 @@ export default function App() {
         setLoadingReport(false);
       }
     },
-    [vertical, brandSlug]
+    [vertical, brandSlug, flyToLocation, setSelectedHex, setLoadingReport]
   );
 
   return (

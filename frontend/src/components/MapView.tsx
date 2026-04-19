@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Map, { type MapRef, useControl } from "react-map-gl/maplibre";
 import { ScatterplotLayer } from "@deck.gl/layers";
 import { H3HexagonLayer } from "@deck.gl/geo-layers";
@@ -35,9 +35,28 @@ export function MapView() {
     hexes, setHexes, setLoadingHeatmap, loadingHeatmap,
     heatmapError, setHeatmapError,
     layers,
-    setSelectedHex, setLoadingReport,
+    selectedHex, setSelectedHex, loadingReport, setLoadingReport,
+    pinned,
     flyTo,
   } = useStore();
+
+  // top-scoring hex — shown with a pulse marker for the "wow moment"
+  const topHex = useMemo(() => {
+    if (!hexes.length) return null;
+    return hexes.reduce((a, b) => (b.score > a.score ? b : a));
+  }, [hexes]);
+
+  // pulse phase for the top-hex ring
+  const [pulse, setPulse] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const loop = () => {
+      setPulse((p) => (p + 0.02) % 1);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   // consume imperative flyTo requests (from chat, pinned-click, etc.)
   useEffect(() => {
@@ -82,8 +101,9 @@ export function MapView() {
   useEffect(() => { loadPins(); }, [loadPins]);
 
   async function handleHexClick(hex: HexResult) {
+    // Don't null selectedHex — let existing report stay visible while we fetch,
+    // so switching hexes is a content swap instead of a panel remount + skeleton.
     setLoadingReport(true);
-    setSelectedHex(null);
     try {
       const r = await api.report(vertical, hex.h3_id, brandSlug || undefined);
       setSelectedHex(r);
@@ -91,6 +111,9 @@ export function MapView() {
       setLoadingReport(false);
     }
   }
+
+  // Report panel occupies the right ~360px; shift floating UI so it's not hidden.
+  const reportVisible = !!(selectedHex || loadingReport);
 
   const deckLayers = [
     // H3 opportunity heatmap
@@ -100,15 +123,16 @@ export function MapView() {
         data: hexes,
         getHexagon: (d) => d.h3_id,
         getFillColor: (d) => scoreColor(d.score),
-        getElevation: (d) => 0,
-        elevationScale: 1,
+        getLineColor: [255, 255, 255, 180],
+        lineWidthMinPixels: 0.5,
+        filled: true,
+        stroked: true,
         extruded: false,
         pickable: true,
         opacity: 0.75,
-        beforeId: "water", // This puts the hexes underneath the basemap water layer!
         onClick: ({ object }) => object && handleHexClick(object),
-        updateTriggers: { getFillColor: [hexes], getElevation: [hexes] },
-        transitions: { getFillColor: 400, getElevation: 400 },
+        updateTriggers: { getFillColor: [hexes] },
+        transitions: { getFillColor: 400 },
       }),
 
     // competitor pins
@@ -135,6 +159,72 @@ export function MapView() {
         radiusMinPixels: 3,
         radiusMaxPixels: 10,
         pickable: true,
+      }),
+
+    // selected-hex outline
+    selectedHex &&
+      new H3HexagonLayer<{ h3_id: string }>({
+        id: "selected-outline",
+        data: [{ h3_id: selectedHex.h3_id }],
+        getHexagon: (d) => d.h3_id,
+        filled: false,
+        stroked: true,
+        getLineColor: [17, 24, 39, 230],
+        lineWidthMinPixels: 2,
+        pickable: false,
+      }),
+
+    // pinned markers on the map (ring + label)
+    pinned.length > 0 &&
+      new ScatterplotLayer<HexResult>({
+        id: "pinned-ring",
+        data: pinned,
+        getPosition: (d) => [d.lng, d.lat],
+        getFillColor: [255, 255, 255, 0],
+        getLineColor: [17, 24, 39, 230],
+        stroked: true,
+        filled: true,
+        lineWidthMinPixels: 2,
+        getRadius: 10,
+        radiusMinPixels: 9,
+        radiusMaxPixels: 14,
+        pickable: false,
+      }),
+
+    // top-hex pulse (two expanding rings, animated via `pulse` 0..1)
+    topHex &&
+      hexes.length > 0 &&
+      !loadingHeatmap &&
+      new ScatterplotLayer<{ lat: number; lng: number }>({
+        id: `top-pulse-a`,
+        data: [topHex],
+        getPosition: (d) => [d.lng, d.lat],
+        getRadius: 40 + pulse * 160,
+        radiusMinPixels: 10 + pulse * 32,
+        radiusMaxPixels: 60,
+        stroked: true,
+        filled: false,
+        getLineColor: [16, 185, 129, Math.round((1 - pulse) * 220)],
+        lineWidthMinPixels: 2,
+        pickable: false,
+        updateTriggers: { getRadius: pulse, getLineColor: pulse },
+      }),
+    topHex &&
+      hexes.length > 0 &&
+      !loadingHeatmap &&
+      new ScatterplotLayer<{ lat: number; lng: number }>({
+        id: `top-pulse-b`,
+        data: [topHex],
+        getPosition: (d) => [d.lng, d.lat],
+        getRadius: 40 + ((pulse + 0.5) % 1) * 160,
+        radiusMinPixels: 10 + ((pulse + 0.5) % 1) * 32,
+        radiusMaxPixels: 60,
+        stroked: true,
+        filled: false,
+        getLineColor: [16, 185, 129, Math.round((1 - ((pulse + 0.5) % 1)) * 160)],
+        lineWidthMinPixels: 1.5,
+        pickable: false,
+        updateTriggers: { getRadius: pulse, getLineColor: pulse },
       }),
   ].filter(Boolean);
 
@@ -209,20 +299,36 @@ export function MapView() {
       )}
 
       <div
-        className="absolute bottom-24 right-6 rounded-xl p-3.5 text-xs space-y-2 z-20"
-        style={{ background: '#fff', border: '1px solid #E5E7EB', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
+        className="absolute bottom-24 rounded-xl p-3.5 text-xs space-y-2 z-20 transition-[right] duration-300 ease-out"
+        style={{
+          right: reportVisible ? 384 : 24,
+          background: '#fff',
+          border: '1px solid #E5E7EB',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+        }}
       >
         <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Score Legend</div>
         {[
           { label: "High (75–100)", color: "#10B981" },
-          { label: "Mid  (50–74)",  color: "#F59E0B" },
-          { label: "Low  (0–49)",   color: "#EF4444" },
+          { label: "Mid (50–74)",  color: "#F59E0B" },
+          { label: "Low (0–49)",   color: "#EF4444" },
         ].map(({ label, color }) => (
           <div key={label} className="flex items-center gap-2.5">
             <div className="w-3.5 h-3.5 rounded" style={{ backgroundColor: color, opacity: 0.85 }} />
             <span style={{ color: '#4B5563' }} className="font-medium">{label}</span>
           </div>
         ))}
+        {topHex && (
+          <div className="flex items-center gap-2.5 pt-1.5 border-t border-gray-100">
+            <span className="relative flex w-3.5 h-3.5 items-center justify-center">
+              <span className="absolute w-3.5 h-3.5 rounded-full bg-emerald-400/40 animate-ping" />
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            </span>
+            <span style={{ color: '#4B5563' }} className="font-medium">
+              Top spot · <span className="tabular font-bold" style={{ color: '#10B981' }}>{topHex.score}</span>
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

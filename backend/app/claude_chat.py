@@ -1,7 +1,12 @@
-"""Claude tool-use bridge for the chat bar.
+"""LLM tool-use bridge for the chat bar.
 
-User NL query -> Claude -> structured tool call -> deterministic DuckDB query ->
-results -> Claude narrates with a short insight.
+User NL query -> LLM -> structured tool call -> deterministic DuckDB query ->
+results -> LLM narrates with a short insight.
+
+Provider is chosen at call time by the environment:
+  - OPENAI_API_KEY    -> OpenAI function-calling (preferred for the live demo)
+  - ANTHROPIC_API_KEY -> Claude tool-use
+  - neither           -> offline keyword fallback (so the demo never breaks)
 
 Tools:
   - filter_locations: applies vertical + locality + must_have_nearby filters,
@@ -20,10 +25,16 @@ try:
 except Exception:  # pragma: no cover
     Anthropic = None  # type: ignore
 
+try:
+    from openai import OpenAI
+except Exception:  # pragma: no cover
+    OpenAI = None  # type: ignore
+
 from .db import get_config
 from .scoring import hex_report, score_hexes
 
-MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-5")
+CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-5")
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 
 SYSTEM = """You are GapMap's AI site-selection assistant. You help franchise operators find the best spot to open their next store in Sydney, Australia.
 
@@ -36,7 +47,7 @@ Rules:
   2. Available verticals: bubble_tea, coffee, fast_casual. Pick the closest match.
   3. Keep narration concise but data-rich (2-4 sentences). Cite concrete numbers: distances, competitor counts, anchor names.
   4. Do not invent data. Only reference values present in the tool output.
-  5. If the user asks about "near universities" or "near transit", emphasize the anchor_pull and transit_proximity scores.
+  5. Component scores are named: market_saturation, cannibalisation, surrounding_amenities, transit_accessibility, demographic_match. If the user asks about "near universities" or "near transit", emphasize surrounding_amenities and transit_accessibility respectively.
   6. Always mention the opportunity score and the single strongest driver (lowest competition, closest anchor, or best transit).
   7. If there's a cannibalization risk (same-brand store nearby), flag it as a warning.
 """
@@ -140,20 +151,131 @@ TOOL_IMPLS = {
 
 
 def chat(user_message: str, max_turns: int = 4) -> dict:
-    """Run a user message through Claude with tool use.
+    """Run a user message through an LLM with tool use.
 
     Returns:
       {
         "reply": str,                       # final assistant text
         "tool_calls": list[{name, input, output}],
         "highlight": {...} | None,          # top hex to focus the map on
+        "_offline"?: bool,                  # set when the heuristic fallback ran
+        "_provider": "openai" | "anthropic" | "offline",
       }
-    """
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key or Anthropic is None:
-        return _offline_fallback(user_message)
 
-    client = Anthropic(api_key=api_key)
+    Provider selection (in priority order):
+      1. OPENAI_API_KEY    → OpenAI function-calling
+      2. ANTHROPIC_API_KEY → Claude tool-use
+      3. neither           → offline keyword fallback
+    """
+    openai_key = os.environ.get("OPENAI_API_KEY")
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+
+    if openai_key and OpenAI is not None:
+        try:
+            return _chat_openai(user_message, max_turns=max_turns)
+        except Exception as exc:  # degrade gracefully so the demo never dies
+            return _offline_fallback(user_message, error=f"OpenAI error: {exc}")
+
+    if anthropic_key and Anthropic is not None:
+        try:
+            return _chat_anthropic(user_message, max_turns=max_turns)
+        except Exception as exc:
+            return _offline_fallback(user_message, error=f"Claude error: {exc}")
+
+    return _offline_fallback(user_message)
+
+
+def _chat_openai(user_message: str, max_turns: int) -> dict:
+    """OpenAI Chat Completions with function-calling (tools)."""
+    client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+
+    # Translate our Anthropic-style tool schemas into OpenAI's.
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": t["name"],
+                "description": t["description"],
+                "parameters": t["input_schema"],
+            },
+        }
+        for t in _tools_schema()
+    ]
+
+    messages: list[dict[str, Any]] = [
+        {"role": "system", "content": SYSTEM},
+        {"role": "user", "content": user_message},
+    ]
+    tool_calls_log: list[dict[str, Any]] = []
+    highlight: dict | None = None
+
+    for _ in range(max_turns):
+        resp = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=messages,
+            tools=tools,
+            tool_choice="auto",
+            temperature=0.3,
+        )
+        msg = resp.choices[0].message
+
+        if not msg.tool_calls:
+            return {
+                "reply": (msg.content or "").strip() or "(no response)",
+                "tool_calls": tool_calls_log,
+                "highlight": highlight,
+                "_provider": "openai",
+            }
+
+        # Append the assistant turn exactly as returned (OpenAI needs the
+        # tool_calls IDs to line up with the follow-up tool messages).
+        messages.append(
+            {
+                "role": "assistant",
+                "content": msg.content or "",
+                "tool_calls": [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+                    }
+                    for tc in msg.tool_calls
+                ],
+            }
+        )
+
+        for tc in msg.tool_calls:
+            name = tc.function.name
+            try:
+                args = json.loads(tc.function.arguments or "{}")
+            except json.JSONDecodeError:
+                args = {}
+            try:
+                output = TOOL_IMPLS[name](**args)
+                if name == "filter_locations" and output.get("results"):
+                    highlight = output["results"][0]
+            except Exception as exc:
+                output = {"error": str(exc)}
+            tool_calls_log.append({"name": name, "input": args, "output": output})
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": json.dumps(output, default=str)[:15000],
+                }
+            )
+
+    return {
+        "reply": "(Maxed out tool turns without a final answer.)",
+        "tool_calls": tool_calls_log,
+        "highlight": highlight,
+        "_provider": "openai",
+    }
+
+
+def _chat_anthropic(user_message: str, max_turns: int) -> dict:
+    """Claude tool-use (kept for fallback / symmetry)."""
+    client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     tools = _tools_schema()
     messages: list[dict[str, Any]] = [{"role": "user", "content": user_message}]
     tool_calls_log: list[dict[str, Any]] = []
@@ -161,13 +283,12 @@ def chat(user_message: str, max_turns: int = 4) -> dict:
 
     for _ in range(max_turns):
         resp = client.messages.create(
-            model=MODEL,
+            model=CLAUDE_MODEL,
             max_tokens=1024,
             system=SYSTEM,
             tools=tools,
             messages=messages,
         )
-        # Did the model call any tools?
         tool_uses = [b for b in resp.content if b.type == "tool_use"]
         if not tool_uses:
             final_text = "\n".join(b.text for b in resp.content if b.type == "text").strip()
@@ -175,9 +296,9 @@ def chat(user_message: str, max_turns: int = 4) -> dict:
                 "reply": final_text or "(no response)",
                 "tool_calls": tool_calls_log,
                 "highlight": highlight,
+                "_provider": "anthropic",
             }
 
-        # Append the model turn, then one tool_result per tool_use
         messages.append({"role": "assistant", "content": resp.content})
         tool_results: list[dict[str, Any]] = []
         for tu in tool_uses:
@@ -203,6 +324,7 @@ def chat(user_message: str, max_turns: int = 4) -> dict:
         "reply": "(Maxed out tool turns without a final answer.)",
         "tool_calls": tool_calls_log,
         "highlight": highlight,
+        "_provider": "anthropic",
     }
 
 
@@ -245,8 +367,8 @@ _ANCHOR_KEYWORDS = {
 }
 
 
-def _offline_fallback(user_message: str) -> dict:
-    """Heuristic parsing so the demo works without an API key.
+def _offline_fallback(user_message: str, error: str | None = None) -> dict:
+    """Heuristic parsing so the demo works without an API key (or if one fails).
 
     Matches keywords to a vertical + optional locality, runs scoring,
     and returns a rich data-backed narration.
@@ -290,11 +412,11 @@ def _offline_fallback(user_message: str) -> dict:
     # If user asked "near universities" etc., re-rank by anchor/transit distance
     results = out.get("results", [])
     if anchor_preference == "is_anchor" and results:
-        # Re-rank: prefer hexes with highest anchor_pull score
-        results.sort(key=lambda r: -r["components"].get("anchor_pull", 0))
+        # Weight surrounding_amenities (anchor + complementary) most heavily
+        results.sort(key=lambda r: -r["components"].get("surrounding_amenities", 0))
         out["results"] = results[:5]
     elif anchor_preference == "is_transit" and results:
-        results.sort(key=lambda r: -r["components"].get("transit_proximity", 0))
+        results.sort(key=lambda r: -r["components"].get("transit_accessibility", 0))
         out["results"] = results[:5]
 
     top = out["results"][0] if out["results"] else None
@@ -348,9 +470,13 @@ def _offline_fallback(user_message: str) -> dict:
     else:
         reply = "No matching locations found. Try broadening your search area or adjusting the vertical."
 
-    return {
+    out_dict: dict = {
         "reply": reply,
         "tool_calls": [{"name": "filter_locations", "input": {"vertical": vertical, "locality": locality}, "output": out}],
         "highlight": top,
         "_offline": True,
+        "_provider": "offline",
     }
+    if error:
+        out_dict["_error"] = error
+    return out_dict

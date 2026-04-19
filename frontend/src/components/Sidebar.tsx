@@ -6,9 +6,9 @@ import { scoreHex } from "../lib/colors";
 import type { HexResult } from "../lib/api";
 
 const LAYER_DEFS = [
-  { key: "opportunity" as const, label: "Opportunity heatmap", color: "#10B981", emoji: "🟧" },
-  { key: "competitors" as const, label: "Competitors", color: "#EF4444", emoji: "🔴" },
-  { key: "complementary" as const, label: "Complementary", color: "#6366F1", emoji: "🟢" },
+  { key: "opportunity" as const, label: "Opportunity heatmap", color: "#10B981" },
+  { key: "competitors" as const, label: "Competitors", color: "#EF4444" },
+  { key: "complementary" as const, label: "Complementary", color: "#6366F1" },
 ];
 
 const BRANDS = [
@@ -66,34 +66,6 @@ export function Sidebar({ onPinnedClick }: { onPinnedClick: (h: HexResult) => vo
           </select>
         </div>
 
-        {/* area */}
-        <div>
-          <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">
-            Area
-          </label>
-          <select
-            className="w-full bg-white border border-gray-200 text-gray-900 text-sm font-medium rounded-xl px-3 py-2.5 appearance-none cursor-pointer"
-            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' stroke='%239CA3AF' fill='none' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center' }}
-          >
-            <option>Inner West, Sydney</option>
-            <option>Greater Sydney</option>
-          </select>
-        </div>
-
-        {/* radius */}
-        <div>
-          <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">
-            Radius
-          </label>
-          <div className="flex items-center gap-3">
-            <input
-              type="range" min="100" max="2000" step="100" defaultValue="500"
-              className="flex-1 h-1 bg-gray-200 rounded-full appearance-none cursor-pointer accent-emerald-500"
-            />
-            <span className="text-sm font-semibold text-gray-900 tabular w-12 text-right">500m</span>
-          </div>
-        </div>
-
         {/* brand quick select */}
         <div>
           <div className="flex items-center justify-between mb-2">
@@ -130,10 +102,10 @@ export function Sidebar({ onPinnedClick }: { onPinnedClick: (h: HexResult) => vo
         {/* map layers */}
         <div>
           <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-3">
-            🗺️ Map Layers
+            Map Layers
           </div>
           <div className="space-y-2.5">
-            {LAYER_DEFS.map(({ key, label, color, emoji }) => (
+            {LAYER_DEFS.map(({ key, label, color }) => (
               <label key={key} className="flex items-center gap-3 cursor-pointer group py-0.5">
                 <div
                   className={`w-[18px] h-[18px] rounded-md border-2 transition-all flex items-center justify-center ${

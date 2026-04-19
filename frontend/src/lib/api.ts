@@ -50,7 +50,12 @@ export type HexReport = {
   lat: number;
   lng: number;
   locality: string | null;
+  region: string | null;
+  postcode: string | null;
   score: number;
+  rank: number | null;
+  rank_total: number;
+  rank_pct: number | null;
   components: HexResult["components"];
   signals_raw: {
     n_competitors: number;

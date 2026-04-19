@@ -1,20 +1,41 @@
-import { useState, useRef, useEffect } from "react";
-import { Send, Sparkles, X, AlertCircle, MessageSquare } from "lucide-react";
+import { useMemo, useState, useRef, useEffect } from "react";
+import { Send, X, AlertCircle, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useStore } from "../lib/store";
 import { api } from "../lib/api";
 import type { HexResult } from "../lib/api";
 
-const STARTERS = [
-  "Where should I open a bubble tea near universities?",
-  "Find gaps in the inner west for coffee",
-  "Best spots for fast casual in Parramatta",
-];
+const STARTERS_BY_VERTICAL: Record<string, string[]> = {
+  bubble_tea: [
+    "Where should I open a bubble tea near universities?",
+    "Gaps for bubble tea in the inner west",
+    "Best bubble tea spots near rail stations",
+  ],
+  coffee: [
+    "Find gaps in the inner west for coffee",
+    "Best coffee spots near offices in the CBD",
+    "Low-competition coffee areas in Chatswood",
+  ],
+  fast_casual: [
+    "Best spots for fast casual in Parramatta",
+    "Where can I open a new Roll'd near a mall?",
+    "Find fast-casual gaps near hospitals",
+  ],
+};
 
 export function ChatBar({ onHighlight }: { onHighlight: (h: HexResult) => void }) {
   const [input, setInput] = useState("");
-  const { chatOpen, setChatOpen, chatHistory, pushChat, chatLoading, setChatLoading } = useStore();
+  const {
+    vertical,
+    chatOpen, setChatOpen, chatHistory, pushChat, chatLoading, setChatLoading,
+    selectedHex, loadingReport,
+  } = useStore();
+  const reportVisible = !!(selectedHex || loadingReport);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const starters = useMemo(
+    () => STARTERS_BY_VERTICAL[vertical] ?? STARTERS_BY_VERTICAL.bubble_tea,
+    [vertical]
+  );
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -38,7 +59,10 @@ export function ChatBar({ onHighlight }: { onHighlight: (h: HexResult) => void }
   }
 
   return (
-    <div className="absolute bottom-6 left-0 right-0 z-10 flex justify-center pointer-events-none px-6">
+    <div
+      className="absolute bottom-6 left-0 z-10 flex justify-center pointer-events-none px-6 transition-[right] duration-300 ease-out"
+      style={{ right: reportVisible ? 360 : 0 }}
+    >
       <div
         className="w-full max-w-2xl bg-white border border-gray-200 rounded-2xl flex flex-col overflow-hidden pointer-events-auto"
         style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}
@@ -95,7 +119,7 @@ export function ChatBar({ onHighlight }: { onHighlight: (h: HexResult) => void }
       {/* starter prompts */}
       {chatOpen && chatHistory.length === 0 && (
         <div className="border-b border-gray-100 px-4 py-2.5 flex gap-2 overflow-x-auto">
-          {STARTERS.map((s) => (
+          {starters.map((s) => (
             <button
               key={s}
               onClick={() => send(s)}
@@ -109,7 +133,7 @@ export function ChatBar({ onHighlight }: { onHighlight: (h: HexResult) => void }
 
       {/* input bar */}
       <div className="px-4 py-3 flex items-center gap-3">
-        <MessageSquare size={18} className="text-gray-400 flex-shrink-0" />
+        <Sparkles size={18} className="text-emerald-500 flex-shrink-0" />
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}

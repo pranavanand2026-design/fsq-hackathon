@@ -53,6 +53,8 @@ class HexScore:
     score: int
     components: dict[str, int]
     signals_raw: dict[str, float]
+    region: str | None = None
+    postcode: str | None = None
 
 
 # ─── SQL helpers ─────────────────────────────────────────────────────────────
@@ -80,6 +82,8 @@ def _category_tag_cte(vertical_key: str) -> str:
         latitude,
         longitude,
         locality,
+        region,
+        postcode,
         primary_category,
         brand_slug,
         h3_9,
@@ -202,14 +206,17 @@ def _score_hexes_impl(
         h3_9,
         AVG(latitude)  AS lat,
         AVG(longitude) AS lng,
-        MODE() WITHIN GROUP (ORDER BY locality) AS locality
+        MODE() WITHIN GROUP (ORDER BY locality) AS locality,
+        MODE() WITHIN GROUP (ORDER BY region)   AS region,
+        MODE() WITHIN GROUP (ORDER BY postcode) AS postcode
       FROM tagged
       WHERE h3_9 IS NOT NULL
       GROUP BY h3_9
     ),
     joined AS (
       SELECT
-        hc.h3_9, hc.lat AS a_lat, hc.lng AS a_lng, hc.locality,
+        hc.h3_9, hc.lat AS a_lat, hc.lng AS a_lng,
+        hc.locality, hc.region, hc.postcode,
         t.latitude AS b_lat, t.longitude AS b_lng,
         t.is_competitor, t.is_complementary, t.is_anchor,
         t.is_transit, t.is_retail_fnb, t.brand_slug
@@ -229,6 +236,8 @@ def _score_hexes_impl(
         ANY_VALUE(a_lat) AS lat,
         ANY_VALUE(a_lng) AS lng,
         ANY_VALUE(locality) AS locality,
+        ANY_VALUE(region)   AS region,
+        ANY_VALUE(postcode) AS postcode,
         COUNT(*) FILTER (WHERE is_competitor AND dist_m <= {PARAMS["competitor_radius_m"]}) AS n_competitors,
         COUNT(*) FILTER (WHERE is_complementary AND dist_m <= {PARAMS["complementary_radius_m"]}) AS n_complementary,
         COUNT(*) FILTER (WHERE is_retail_fnb   AND dist_m <= {PARAMS["foot_traffic_radius_m"]}) AS n_retail,
@@ -267,6 +276,8 @@ def _score_hexes_impl(
                 lat=float(d["lat"]),
                 lng=float(d["lng"]),
                 locality=d["locality"],
+                region=d.get("region"),
+                postcode=d.get("postcode"),
                 score=int(total),
                 components=components,
                 signals_raw={
@@ -430,6 +441,12 @@ def hex_report(vertical_key: str, h3_id: str, brand_slug: str | None = None) -> 
             },
         )
 
+    # Percentile rank among all scored hexes (1 = best, N = worst)
+    total_hexes = len(all_scores)
+    higher = sum(1 for s in all_scores if s.score > hit.score)
+    rank = higher + 1 if total_hexes else None
+    pct = round((higher / total_hexes) * 100) if total_hexes else None  # top X%
+
     # Nearest competitors (top 5), nearest complementary (top 5), nearest anchors (top 3)
     def nearest(flag_col: str, k: int, max_m: int = 2000) -> list[dict]:
         dist_sql = _haversine_sql(str(lat), str(lng), "latitude", "longitude")
@@ -479,7 +496,12 @@ def hex_report(vertical_key: str, h3_id: str, brand_slug: str | None = None) -> 
         "lat": hit.lat,
         "lng": hit.lng,
         "locality": hit.locality,
+        "region": hit.region,
+        "postcode": hit.postcode,
         "score": hit.score,
+        "rank": rank,
+        "rank_total": total_hexes,
+        "rank_pct": pct,
         "components": hit.components,
         "signals_raw": hit.signals_raw,
         "weights": WEIGHTS,
