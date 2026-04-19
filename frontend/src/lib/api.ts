@@ -5,11 +5,11 @@ export type HexResult = {
   locality: string | null;
   score: number;
   components: {
-    competition_density: number;
-    anchor_pull: number;
-    foot_traffic_proxy: number;
-    transit_proximity: number;
-    cannibalization: number;
+    market_saturation: number;
+    cannibalisation: number;
+    surrounding_amenities: number;
+    transit_accessibility: number;
+    demographic_match: number;
   };
   n_competitors: number;
   n_complementary: number;

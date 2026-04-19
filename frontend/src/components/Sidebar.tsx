@@ -11,6 +11,14 @@ const LAYER_DEFS = [
   { key: "complementary" as const, label: "Complementary", color: "#6366F1", emoji: "🟢" },
 ];
 
+const BRANDS = [
+  { name: "Guzman y Gomez", slug: "guzmanygomez" },
+  { name: "Fishbowl", slug: "fishbowl" },
+  { name: "Betty's", slug: "bettysburgers" },
+  { name: "Roll'd", slug: "rolld" },
+  { name: "Gong cha", slug: "gongcha" },
+];
+
 export function Sidebar({ onPinnedClick }: { onPinnedClick: (h: HexResult) => void }) {
   const {
     verticals, setVerticals,
@@ -86,19 +94,37 @@ export function Sidebar({ onPinnedClick }: { onPinnedClick: (h: HexResult) => vo
           </div>
         </div>
 
-        {/* brand slug */}
+        {/* brand quick select */}
         <div>
-          <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">
-            Your brand
-          </label>
-          <input
-            type="text"
-            value={brandSlug}
-            onChange={(e) => setBrandSlug(e.target.value.toLowerCase().replace(/[^a-z]/g, ""))}
-            placeholder="e.g. gongcha"
-            className="w-full bg-white border border-gray-200 text-gray-900 text-sm font-medium rounded-xl px-3 py-2.5 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all placeholder:text-gray-300"
-          />
-          <p className="text-[10px] text-gray-400 mt-1.5">For cannibalisation analysis</p>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+              Your brand
+            </label>
+            {brandSlug && (
+              <button 
+                onClick={() => setBrandSlug("")}
+                className="text-[10px] text-gray-400 hover:text-gray-600 font-medium transition-colors cursor-pointer"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {BRANDS.map(b => (
+              <button
+                key={b.slug}
+                onClick={() => setBrandSlug(brandSlug === b.slug ? "" : b.slug)}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm ${
+                  brandSlug === b.slug
+                    ? "bg-emerald-500 text-white border border-emerald-500 pointer-events-none"
+                    : "bg-white text-gray-600 border border-gray-200 hover:border-emerald-300 hover:text-emerald-600"
+                }`}
+              >
+                {b.name}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-gray-400 mt-2 leading-tight">Quick select for cannibalisation analysis</p>
         </div>
 
         {/* map layers */}

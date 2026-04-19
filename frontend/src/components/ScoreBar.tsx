@@ -2,19 +2,19 @@ import { motion } from "framer-motion";
 import { scoreHex } from "../lib/colors";
 
 const LABELS: Record<string, string> = {
-  competition_density: "Competition density",
-  anchor_pull:         "Anchor pull",
-  foot_traffic_proxy:  "Foot-traffic proxy",
-  transit_proximity:   "Transit proximity",
-  cannibalization:     "Cannibalization dist.",
+  market_saturation: "Market Saturation",
+  cannibalisation: "Customer Redistribution",
+  surrounding_amenities: "Surrounding Amenities",
+  transit_accessibility: "Transit Accessibility",
+  demographic_match: "Demographic Match",
 };
 
 const WEIGHTS: Record<string, number> = {
-  competition_density: 25,
-  anchor_pull:         25,
-  foot_traffic_proxy:  20,
-  transit_proximity:   15,
-  cannibalization:     15,
+  market_saturation: 25,
+  cannibalisation: 25,
+  surrounding_amenities: 20,
+  transit_accessibility: 15,
+  demographic_match: 15,
 };
 
 export function ScoreBar({ name, value }: { name: string; value: number }) {

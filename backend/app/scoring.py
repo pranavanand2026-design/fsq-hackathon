@@ -20,11 +20,11 @@ import h3
 from .db import get_con, get_config, get_vertical
 
 WEIGHTS = {
-    "competition_density": 25,
-    "anchor_pull":         25,
-    "foot_traffic_proxy":  20,
-    "transit_proximity":   15,
-    "cannibalization":     15,
+    "market_saturation": 25,
+    "cannibalisation": 25,
+    "surrounding_amenities": 20,
+    "transit_accessibility": 15,
+    "demographic_match": 15,
 }
 
 # Scoring tuning parameters — tunable without code changes
@@ -118,25 +118,27 @@ def _lerp_clamp(value: float, at_zero: float, at_hundred: float) -> float:
     return max(0.0, min(100.0, t * 100.0))
 
 
-def _score_competition(n: int) -> float:
+def _score_market_saturation(n: int) -> float:
     return _lerp_clamp(n, at_zero=PARAMS["competitor_saturation"], at_hundred=0)
 
 
-def _score_anchor(dist_m: float | None) -> float:
-    if dist_m is None:
-        return 0.0
-    return _lerp_clamp(
-        dist_m,
-        at_zero=PARAMS["anchor_zero_m"],
-        at_hundred=PARAMS["anchor_full_score_m"],
-    )
+def _score_surrounding_amenities(dist_m: float | None, n_complementary: int) -> float:
+    s_anchor = 0.0
+    if dist_m is not None:
+        s_anchor = _lerp_clamp(
+            dist_m,
+            at_zero=PARAMS["anchor_zero_m"],
+            at_hundred=PARAMS["anchor_full_score_m"],
+        )
+    s_comp = _lerp_clamp(n_complementary, at_zero=0, at_hundred=10)
+    return (s_anchor * 0.5) + (s_comp * 0.5)
 
 
-def _score_foot_traffic(n: int) -> float:
+def _score_demographic_match(n: int) -> float:
     return _lerp_clamp(n, at_zero=0, at_hundred=PARAMS["foot_traffic_saturation"])
 
 
-def _score_transit(dist_m: float | None) -> float:
+def _score_transit_accessibility(dist_m: float | None) -> float:
     if dist_m is None:
         return 0.0
     return _lerp_clamp(
@@ -146,7 +148,7 @@ def _score_transit(dist_m: float | None) -> float:
     )
 
 
-def _score_cannibal(dist_m: float | None) -> float:
+def _score_cannibalisation(dist_m: float | None) -> float:
     # No same-brand nearby = best case
     if dist_m is None:
         return 100.0
@@ -250,11 +252,11 @@ def _score_hexes_impl(
     for row in rows:
         d = dict(zip(cols, row))
         components = {
-            "competition_density": round(_score_competition(d["n_competitors"])),
-            "anchor_pull":         round(_score_anchor(d["d_anchor_m"])),
-            "foot_traffic_proxy":  round(_score_foot_traffic(d["n_retail"])),
-            "transit_proximity":   round(_score_transit(d["d_transit_m"])),
-            "cannibalization":     round(_score_cannibal(d["d_cannibal_m"])),
+            "market_saturation":     round(_score_market_saturation(d["n_competitors"])),
+            "cannibalisation":       round(_score_cannibalisation(d["d_cannibal_m"])),
+            "surrounding_amenities": round(_score_surrounding_amenities(d["d_anchor_m"], d["n_complementary"])),
+            "transit_accessibility": round(_score_transit_accessibility(d["d_transit_m"])),
+            "demographic_match":     round(_score_demographic_match(d["n_retail"])),
         }
         total = round(
             sum(components[k] * (WEIGHTS[k] / 100.0) for k in WEIGHTS)
@@ -347,57 +349,60 @@ def _generate_ai_insight(
     nearest_transit: list[dict],
     diversity: float,
 ) -> str:
-    """Generate a rich, data-backed AI insight paragraph from scoring signals."""
-    area = locality or "This area"
+    """Generate a high-end, data-backed enterprise insight paragraph."""
+    area = locality or "The designated area"
     parts = []
     
-    # Score assessment
+    # Executive assessment
     if score >= 85:
-        parts.append(f"{area} is an **excellent** white-space opportunity with a score of {score}/100.")
+        parts.append(f"**Executive Summary:** {area} presents a highly lucrative site-selection opportunity with a composite score of {score}/100, driven by minimal market saturation and strong local synergies.")
     elif score >= 70:
-        parts.append(f"{area} scores a strong {score}/100, making it a **high-potential** site.")
+        parts.append(f"**Executive Summary:** {area} yields a solid rating of {score}/100, indicating viable expansion potential with a balanced risk-return profile.")
     elif score >= 50:
-        parts.append(f"{area} scores {score}/100 — a **moderate** opportunity with room for growth.")
+        parts.append(f"**Executive Summary:** {area} scores {score}/100. This location carries moderate viability risk and warrants careful tactical review before greenlighting investment.")
     else:
-        parts.append(f"{area} scores only {score}/100 — this location has **significant risk factors**.")
+        parts.append(f"**Executive Summary:** {area} scores {score}/100. We flag this as a high-risk zone—location criteria fall well below enterprise thresholds for successful expansion.")
     
-    # Competition insight
+    # 1. Market Saturation
     n_comp = signals_raw.get("n_competitors", 0)
     if n_comp == 0:
-        parts.append("Zero direct competitors within 500m — a true gap in the market.")
+        parts.append("• **Market Saturation:** Highly favorable. A total absence of direct competitors within 500m creates immediate white-space capture potential.")
     elif n_comp <= 2:
-        parts.append(f"Only {n_comp} competitor{'s' if n_comp > 1 else ''} within 500m, suggesting low saturation.")
+        parts.append(f"• **Market Saturation:** Favorable. Isolated competitive presence ({n_comp} identified within the catchment), suggesting ample headroom for market share acquisition.")
     else:
         closest = nearest_competitors[0] if nearest_competitors else None
-        if closest:
-            parts.append(f"{n_comp} competitors nearby (closest: {closest['name']} at {closest['dist_m']}m).")
+        dist_str = f" as close as {closest['dist_m']}m" if closest else ""
+        parts.append(f"• **Market Saturation:** High risk. Severe catchment overlap with {n_comp} existing venues{dist_str}. Margin compression and reduced same-store sales trajectories are likely without significant differentiation.")
     
-    # Foot traffic / anchor driver
-    if nearest_anchors:
-        anchor = nearest_anchors[0]
-        parts.append(f"Strong anchor pull from {anchor['name']} just {anchor['dist_m']}m away, driving consistent foot traffic.")
-    
-    # Complementary businesses
-    n_comp_nearby = len(nearest_complementary)
-    if n_comp_nearby >= 3:
-        names = [c["name"] for c in nearest_complementary[:3]]
-        parts.append(f"Surrounded by {n_comp_nearby} complementary businesses including {', '.join(names)}.")
-    
-    # Transit
-    if nearest_transit:
-        t = nearest_transit[0]
-        parts.append(f"Transit access via {t['name']} ({t['dist_m']}m) supports repeat visits.")
-    
-    # Diversity
-    if diversity >= 0.7:
-        parts.append(f"High category diversity ({diversity}) indicates a vibrant commercial precinct.")
-    
-    # Cannibalization warning
+    # 2. Cannibalisation
     d_cannibal = signals_raw.get("d_cannibal_m")
     if d_cannibal is not None and d_cannibal < 500:
-        parts.append(f"⚠️ Cannibalization risk: existing same-brand store only {round(d_cannibal)}m away.")
+        parts.append(f"• **Cannibalisation:** Critical warning. Existing brand network node is just {round(d_cannibal)}m away. Proceeding risks significant customer redistribution and network-wide yield degradation.")
+    elif d_cannibal is not None and d_cannibal < 1500:
+        parts.append(f"• **Cannibalisation:** Moderate risk. Closest brand presence is at {round(d_cannibal)}m—requiring tactical marketing alignment to avoid customer extraction.")
+    else:
+        parts.append("• **Cannibalisation:** Negligible risk. Zero same-brand proximity threats detected within the core trade area.")
+
+    # 3. Surrounding Amenities & 4. Demographic Match proxy
+    n_comp_nearby = len(nearest_complementary)
+    anchor_str = ""
+    if nearest_anchors:
+        anchor = nearest_anchors[0]
+        anchor_str = f" and major anchor draw ({anchor['name']} at {anchor['dist_m']}m)"
     
-    return " ".join(parts)
+    if n_comp_nearby >= 3 or nearest_anchors:
+        parts.append(f"• **Surrounding Amenities & Demographics:** {n_comp_nearby} complementary businesses{anchor_str} drive robust auxiliary footfall. A category diversity rating of {diversity}/1.0 indicates strong local purchasing vitality.")
+    else:
+        parts.append(f"• **Surrounding Amenities & Demographics:** Critical lack of complementary F&B venues and anchors. A low category diversity ({diversity}/1.0) points to a weak demographic pull for this site.")
+
+    # 5. Transit
+    if nearest_transit:
+        t = nearest_transit[0]
+        parts.append(f"• **Transit Accessibility:** Proximity to {t['name']} ({t['dist_m']}m) anchors the transit corridor, optimizing workforce logistics and amplifying peak-hour commuter capture.")
+    else:
+        parts.append("• **Transit Accessibility:** Limited immediate mass-transit nodes, weighting reliance toward local residential or drive-by traffic.")
+    
+    return "\n\n".join(parts)
 
 
 # ─── Per-hex drill-down (for the report panel) ───────────────────────────────

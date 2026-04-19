@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import Map, { type MapRef } from "react-map-gl/maplibre";
-import DeckGL from "@deck.gl/react";
-import { FlyToInterpolator } from "@deck.gl/core";
-import { H3HexagonLayer } from "@deck.gl/geo-layers";
+import Map, { type MapRef, useControl } from "react-map-gl/maplibre";
 import { ScatterplotLayer } from "@deck.gl/layers";
+import { H3HexagonLayer } from "@deck.gl/geo-layers";
+import { MapboxOverlay, type MapboxOverlayProps } from "@deck.gl/mapbox";
 import { api } from "../lib/api";
 import { useStore } from "../lib/store";
 import { scoreColor } from "../lib/colors";
@@ -18,6 +17,12 @@ const INITIAL_VIEW = {
 };
 
 const BASEMAP = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
+
+function DeckGLOverlay(props: MapboxOverlayProps) {
+  const overlay = useControl<MapboxOverlay>(() => new MapboxOverlay(props));
+  overlay.setProps(props);
+  return null;
+}
 
 
 export function MapView() {
@@ -37,15 +42,12 @@ export function MapView() {
   // consume imperative flyTo requests (from chat, pinned-click, etc.)
   useEffect(() => {
     if (!flyTo) return;
-    setViewState((vs) => ({
-      ...vs,
-      latitude: flyTo.lat,
-      longitude: flyTo.lng,
+    mapRef.current?.flyTo({
+      center: [flyTo.lng, flyTo.lat],
       zoom: flyTo.zoom,
       pitch: 40,
-      transitionDuration: 1400,
-      transitionInterpolator: new FlyToInterpolator({ speed: 1.3 }),
-    }) as any);
+      duration: 1400,
+    });
   }, [flyTo?.tick]);
 
   // load heatmap on vertical change
@@ -103,6 +105,7 @@ export function MapView() {
         extruded: false,
         pickable: true,
         opacity: 0.75,
+        beforeId: "water", // This puts the hexes underneath the basemap water layer!
         onClick: ({ object }) => object && handleHexClick(object),
         updateTriggers: { getFillColor: [hexes], getElevation: [hexes] },
         transitions: { getFillColor: 400, getElevation: 400 },
@@ -135,45 +138,47 @@ export function MapView() {
       }),
   ].filter(Boolean);
 
+  const getTooltip = (info: any) => {
+    const object = info.object as (HexResult | Pin | null);
+    if (!object) return null;
+    if ("h3_id" in object) {
+      return {
+        html: `<div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:8px;padding:8px 12px;font-family:Inter,sans-serif;font-size:13px;color:#111827;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1)">
+          <div style="font-weight:600">${object.locality ?? "Sydney Area"}</div>
+          <div style="color:#10B981;font-size:18px;font-weight:700;margin-top:2px">${object.score}<span style="color:#9CA3AF;font-size:12px">/100</span></div>
+          <div style="color:#4B5563;font-size:11px;margin-top:4px">Click to open report</div>
+        </div>`,
+        style: { background: "transparent", border: "none", padding: "0" },
+      };
+    }
+    if ("name" in object) {
+      return {
+        html: `<div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:8px;padding:6px 10px;font-family:Inter,sans-serif;font-size:12px;color:#111827;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1)">
+          <div style="font-weight:600">${object.name}</div>
+          <div style="color:#4B5563;margin-top:2px">${object.primary_category ?? ""}</div>
+        </div>`,
+        style: { background: "transparent", border: "none", padding: "0" },
+      };
+    }
+    return null;
+  };
+
   return (
     <div className="relative w-full h-full">
-      <DeckGL
-        viewState={viewState}
-        onViewStateChange={({ viewState: vs }) => setViewState(vs as typeof INITIAL_VIEW)}
-        controller={true}
-        layers={deckLayers}
-        getTooltip={(info) => {
-          const object = info.object as (HexResult | Pin | null);
-          if (!object) return null;
-          if ("h3_id" in object) {
-            return {
-              html: `<div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:8px;padding:8px 12px;font-family:Inter,sans-serif;font-size:13px;color:#111827;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1)">
-                <div style="font-weight:600">${object.locality ?? "Sydney Area"}</div>
-                <div style="color:#10B981;font-size:18px;font-weight:700;margin-top:2px">${object.score}<span style="color:#9CA3AF;font-size:12px">/100</span></div>
-                <div style="color:#4B5563;font-size:11px;margin-top:4px">Click to open report</div>
-              </div>`,
-              style: { background: "transparent", border: "none", padding: "0" },
-            };
-          }
-          if ("name" in object) {
-            return {
-              html: `<div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:8px;padding:6px 10px;font-family:Inter,sans-serif;font-size:12px;color:#111827;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1)">
-                <div style="font-weight:600">${object.name}</div>
-                <div style="color:#4B5563;margin-top:2px">${object.primary_category ?? ""}</div>
-              </div>`,
-              style: { background: "transparent", border: "none", padding: "0" },
-            };
-          }
-          return null;
-        }}
+      <Map
+        ref={mapRef}
+        mapStyle={BASEMAP}
+        initialViewState={viewState}
+        onMove={evt => setViewState(evt.viewState as any)}
+        onMoveEnd={loadPins}
+        reuseMaps
       >
-        <Map
-          ref={mapRef}
-          mapStyle={BASEMAP}
-          onMoveEnd={loadPins}
-          reuseMaps
+        <DeckGLOverlay
+          interleaved={true}
+          layers={deckLayers}
+          getTooltip={getTooltip}
         />
-      </DeckGL>
+      </Map>
 
       {/* loading overlay */}
       {loadingHeatmap && (

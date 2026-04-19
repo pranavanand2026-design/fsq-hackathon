@@ -2,6 +2,14 @@ import { useMemo } from "react";
 import { Zap, Store } from "lucide-react";
 import { useStore } from "../lib/store";
 
+const BRAND_NAMES: Record<string, string> = {
+  guzmanygomez: "Guzman y Gomez",
+  fishbowl: "Fishbowl",
+  bettysburgers: "Betty's",
+  rolld: "Roll'd",
+  gongcha: "Gong cha"
+};
+
 export function TopBar() {
   const { verticals, vertical, brandSlug, hexes } = useStore();
   const label = useMemo(
@@ -25,7 +33,7 @@ export function TopBar() {
         <>
           <span className="text-gray-300">·</span>
           <Store size={11} className="text-gray-400" />
-          <span className="text-gray-600 font-medium">{brandSlug}</span>
+          <span className="text-gray-600 font-medium">{BRAND_NAMES[brandSlug] || brandSlug}</span>
         </>
       )}
       {hexes.length > 0 && (
